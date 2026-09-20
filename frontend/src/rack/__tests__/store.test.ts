@@ -3,6 +3,7 @@ import { useRackStore } from '../store'
 import { getFaceplate } from '../faceplates'
 import { RACK_COLUMNS, type InventoryDevice } from '@/types'
 import { MAX_RACK_U, MIN_RACK_U } from '../rackDefaults'
+import { cableTypeForPort } from '@/utils/rackSerializer'
 import { demoNetworkLinks } from '../demoData'
 
 const store = () => useRackStore.getState()
@@ -628,6 +629,43 @@ describe('cables', () => {
   it('refuses an unknown port', () => {
     const { a } = freePorts()
     expect(store().addCable(a, { deviceId: 'dev-pve1', portId: 'nope' })).toBeNull()
+  })
+
+  it('never patches a power socket — it is visual only', () => {
+    // The custom plate builder's power jack draws but is not a cable endpoint.
+    const device = store().devices.find((d) => d.id === 'dev-pve1')!
+    const powerPort = { id: 'power-1', label: 'psu', type: 'power' as const, x: 0.5, y: 0.5 }
+    store().setPorts(device.id, [...device.ports, powerPort])
+
+    const data = store().devices.find((d) => d.id === 'dev-pve1')!
+    const power = data.ports.find((p) => p.id === 'power-1')!
+
+    // Power has no cable type, so it can seed no ethernet/fiber run.
+    expect(cableTypeForPort(power.type)).toBeUndefined()
+
+    const before = store().cables.length
+    // As the source…
+    expect(store().addCable({ deviceId: data.id, portId: power.id }, freePorts().b)).toBeNull()
+    // …and as the target.
+    expect(store().addCable(freePorts().a, { deviceId: data.id, portId: power.id })).toBeNull()
+    expect(store().cables).toHaveLength(before)
+  })
+
+  it('keeps power sockets out of the free ports an import can pick', () => {
+    // Give a racked, node-linked device a single free power jack. The import
+    // matching it must find no data port to patch, so nothing is created even
+    // though both ends are racked and the pair is otherwise free.
+    const device = store().devices.find((d) => d.id === 'dev-pve1')!
+    const other = store().devices.find((d) => d.id === 'dev-sw24')!
+    expect(device.nodeId).toBeTruthy()
+    store().setPorts(device.id, [{ id: 'power-only', label: 'psu', type: 'power' as const, x: 0.5, y: 0.5 }])
+    const before = store().cables.map((c) => c.id)
+
+    store().importCablesFromNetwork([{ from: device.nodeId!, to: other.nodeId!, type: 'ethernet' }])
+
+    // Nothing new was patched — the only free "port" was a power socket.
+    const created = store().cables.filter((c) => !before.includes(c.id))
+    expect(created).toHaveLength(0)
   })
 
   it('builds a cable across two clicks in patch mode', () => {

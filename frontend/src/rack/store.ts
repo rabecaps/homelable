@@ -819,6 +819,19 @@ export const useRackStore = create<RackState>((set, get) => {
         devices.some((d) => d.id === ref.deviceId && d.ports.some((p) => p.id === ref.portId))
       if (!hasPort(from) || !hasPort(to)) return null
 
+      // A `power` socket (custom plate builder) draws but is never a cable
+      // endpoint — power cabling is out of v1. Rejecting it here, on the single
+      // path every patch funnels through (click-then-click `pickPort`, drag
+      // `startCableDrag`/`endCableDrag`, and import), keeps a power jack out of
+      // every endpoint slot and out of `PORT_CABLE_TYPE` at once.
+      const cableable = (ref: CableDraft) => {
+        const port = devices
+          .find((d) => d.id === ref.deviceId)!
+          .ports.find((p) => p.id === ref.portId)!
+        return PORT_CABLE_TYPE[port.type] !== undefined
+      }
+      if (!cableable(from) || !cableable(to)) return null
+
       // A physical port takes one cable.
       const taken = (ref: CableDraft) =>
         cables.some(
@@ -828,11 +841,14 @@ export const useRackStore = create<RackState>((set, get) => {
         )
       if (taken(from) || taken(to)) return null
 
-      // Fibre vs copper follows the port the patch starts from.
+      // Fibre vs copper follows the port the patch starts from. The guard above
+      // already rejected a `power` endpoint, so this is always a data port with
+      // a real cable type; the fallback is only there to keep TS total.
       const fromPort = devices
         .find((d) => d.id === from.deviceId)!
         .ports.find((p) => p.id === from.portId)!
-      const type = options?.type ?? PORT_CABLE_TYPE[fromPort.type]
+      const portType = PORT_CABLE_TYPE[fromPort.type]
+      const type = options?.type ?? (portType ?? 'ethernet')
       const cable: Cable = {
         id: generateUUID(),
         type,
@@ -877,9 +893,12 @@ export const useRackStore = create<RackState>((set, get) => {
         )
         // Prefer a port the cable could actually be plugged into: a fibre link
         // landing on two RJ45 jacks draws an amber run across copper ports. Any
-        // free port still beats no patch at all when the plate has none.
+        // free port still beats no patch at all when the plate has none — except
+        // a `power` socket, which is visual-only and must never carry a patch.
         const freePort = (device: typeof a) => {
-          const free = device.ports.filter((p) => !usedPorts.has(`${device.id}:${p.id}`))
+          const free = device.ports.filter(
+            (p) => !usedPorts.has(`${device.id}:${p.id}`) && PORT_CABLE_TYPE[p.type] !== undefined,
+          )
           return free.find((p) => PORT_CABLE_TYPE[p.type] === hint.type) ?? free[0]
         }
         const pa = freePort(a)

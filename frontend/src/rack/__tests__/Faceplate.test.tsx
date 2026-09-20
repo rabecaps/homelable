@@ -71,6 +71,115 @@ describe('Faceplate — port artwork', () => {
   })
 })
 
+describe('Faceplate — custom plate builder wiring', () => {
+  const ports = [
+    { id: 'a', label: 'p1', type: 'rj45' as const, x: 0.3, y: 0.5, color: '#ff0000' },
+    { id: 'b', label: 'p2', type: 'power' as const, x: 0.5, y: 0.5 },
+    { id: 'c', label: 'p3', type: 'sfp' as const, x: 0.7, y: 0.5, color: '#00ff00' },
+  ]
+
+  it('renders a per-port colour as the jack fill', () => {
+    const { container } = render(
+      <Faceplate
+        faceplateId="blank-black"
+        label="gear"
+        status="online"
+        ports={ports}
+        width={200}
+        height={24}
+        revealed
+      />,
+    )
+    const byTitle = (label: string) =>
+      Array.from(container.querySelectorAll('g')).find(
+        (g) => g.querySelector('title')?.textContent?.split(' ·')[0] === label,
+      )
+    // RJ45 is a path; its fill is the port colour.
+    const rj45 = byTitle('p1')!.querySelector('path')
+    expect(rj45).toHaveAttribute('fill', '#ff0000')
+    // SFP is a rect; the first (recess) rect carries the fill.
+    const sfp = byTitle('p3')!
+    const rects = Array.from(sfp.querySelectorAll('rect'))
+    expect(rects[0]).toHaveAttribute('fill', '#00ff00')
+  })
+
+  it('leaves a port without a colour on the theme fill', () => {
+    const { container } = render(
+      <Faceplate
+        faceplateId="blank-black"
+        label="gear"
+        status="online"
+        ports={[{ id: 'z', label: 'p9', type: 'rj45' as const, x: 0.4, y: 0.5 }]}
+        width={200}
+        height={24}
+        revealed
+      />,
+    )
+    const g = Array.from(container.querySelectorAll('g')).find(
+      (g) => g.querySelector('title')?.textContent?.split(' ·')[0] === 'p9',
+    )!
+    expect(g.querySelector('path')).toHaveAttribute('fill', '#0b0e13')
+  })
+
+  it('draws a power jack that is unmistakably not an ethernet/fibre port', () => {
+    const { container } = render(
+      <Faceplate
+        faceplateId="blank-black"
+        label="gear"
+        status="online"
+        ports={ports}
+        width={200}
+        height={24}
+        revealed
+      />,
+    )
+    const power = Array.from(container.querySelectorAll('g')).find(
+      (g) => g.querySelector('title')?.textContent?.startsWith('p2 · power'),
+    )!
+    // The power shape is a pair of pins on a recessed rect — not a path (rj45)
+    // and not the single-rect SFP aperture.
+    expect(power.querySelector('path')).toBeNull()
+    expect(power.querySelectorAll('rect').length).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('Faceplate — label colour and size', () => {
+  it('renders a plate-labelled text with its own colour and size', () => {
+    const { container } = render(
+      <Faceplate
+        faceplateId="blank-black"
+        label="genesis"
+        status="online"
+        ports={[]}
+        width={200}
+        height={100}
+        labelColor="#ff00ff"
+        labelSize={13}
+        revealed
+      />,
+    )
+    const text = container.querySelector('text')
+    expect(text).toHaveAttribute('fill', '#ff00ff')
+    expect(text).toHaveAttribute('font-size', '13')
+  })
+
+  it('falls back to the plate template colour when no override is given', () => {
+    const { container } = render(
+      <Faceplate
+        faceplateId="blank-black"
+        label="genesis"
+        status="online"
+        ports={[]}
+        width={200}
+        height={100}
+        revealed
+      />,
+    )
+    // Light silk on the dark blank plate.
+    expect(container.querySelector('text')).toHaveAttribute('fill', '#e6e6e6')
+  })
+})
+
 describe('Faceplate — name band', () => {
   it('keeps rack gear labelled across the middle', () => {
     const { led, text } = draw('server-1u')

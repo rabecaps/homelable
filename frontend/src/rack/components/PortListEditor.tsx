@@ -12,7 +12,7 @@ import { nextPortSpot } from '../portLayout'
 import { generateUUID } from '@/utils/uuid'
 import type { Port, PortType } from '@/types'
 
-const PORT_TYPES: PortType[] = ['rj45', 'sfp', 'sfp+']
+const PORT_TYPES: PortType[] = ['rj45', 'sfp', 'sfp+', 'power']
 
 interface Props {
   ports: Port[]
@@ -117,6 +117,29 @@ export function PortListEditor({
                 </option>
               ))}
             </select>
+            {/* The custom plate builder lets any socket be any colour. A filled
+                dot marks a custom jack; clearing it (Reset) returns to theme. */}
+            {port.type !== 'power' && (
+              <div className="relative h-6 w-6 shrink-0 cursor-pointer" title={port.color ? 'Port colour (Reset for theme)' : 'Port colour'}>
+                {port.color && (
+                  <button
+                    type="button"
+                    aria-label={`Reset port ${port.label} colour`}
+                    onClick={() => patch(port.id, { color: undefined })}
+                    className="absolute -right-0.5 -top-0.5 z-10 h-3 w-3 cursor-pointer rounded-full border border-[#f85149] bg-[#f85149] text-[8px] leading-none text-white opacity-80"
+                  >
+                    ×
+                  </button>
+                )}
+                <input
+                  type="color"
+                  aria-label={`Port ${port.label} colour`}
+                  value={port.color ?? '#0b0e13'}
+                  onChange={(e) => patch(port.id, { color: e.target.value })}
+                  className="h-6 w-6 cursor-pointer rounded border border-[#30363d] bg-transparent p-0"
+                />
+              </div>
+            )}
             <button
               type="button"
               aria-label={`Remove port ${port.label}`}

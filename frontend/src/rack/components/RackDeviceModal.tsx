@@ -449,6 +449,8 @@ function DeviceForm({ deviceId, onClose }: { deviceId: string | null; onClose: (
                   uHeight={uHeight}
                   colSpan={colSpan}
                   color={color}
+                  labelColor={getFaceplate(faceplateId).labelColor}
+                  labelSize={getFaceplate(faceplateId).labelSize}
                   interactive={positioning && !isAccessory}
                   selectedPortId={selectedPortId}
                   onSelect={setSelectedPortId}

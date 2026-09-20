@@ -51,6 +51,24 @@ function rj45Path(w: number, h: number): string {
   ].join(' ')
 }
 
+/**
+ * A power socket: a recessed rounded jack with two flat pins, unmistakably not
+ * an ethernet/fibre port. Same fixed size as every other socket — a jack is a
+ * jack — so plates of different heights stay comparable.
+ */
+function PowerJack({ w, h, fill, stroke }: { w: number; h: number; fill: string; stroke: string }) {
+  const pinW = Math.max(0.5, w * 0.16)
+  const pinH = Math.max(1, h * 0.5)
+  const gap = pinW * 1.1
+  return (
+    <>
+      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={1} fill={fill} stroke={stroke} strokeWidth={0.9} />
+      <rect x={-gap / 2 - pinW / 2} y={-pinH / 2} width={pinW} height={pinH} fill={stroke} opacity={0.7} />
+      <rect x={gap / 2 - pinW / 2} y={-pinH / 2} width={pinW} height={pinH} fill={stroke} opacity={0.7} />
+    </>
+  )
+}
+
 function drawElement(el: FaceplateElement, i: number, w: number, h: number) {
   switch (el.kind) {
     case 'panel':
@@ -159,6 +177,17 @@ interface Props {
   width: number
   height: number
   colorOverride?: string
+  /**
+   * The name band's text colour, overriding both the theme and the plate's own
+   * `labelColor` default. The custom plate builder lets a silk-screened label
+   * be any colour.
+   */
+  labelColor?: string
+  /**
+   * The name band's text size (pixels, canvas space), overriding the plate's
+   * computed default. Only meaningful where the plate prints its label.
+   */
+  labelSize?: number
   selected?: boolean
   /** Hover or selection: reveals the ports of non-patch gear. */
   revealed?: boolean
@@ -198,6 +227,8 @@ export const Faceplate = memo(function Faceplate({
   width,
   height,
   colorOverride,
+  labelColor,
+  labelSize,
   selected,
   revealed,
   portVisibility,
@@ -226,6 +257,10 @@ export const Faceplate = memo(function Faceplate({
   const bandY = (template.labelBox.y ?? 0.5) * height
   const fontSize = Math.max(8, Math.min(11, height * 0.42))
   const showLabel = labelW > 24 && height >= 14
+  // The plate's own silk-text colour beats the theme; an explicit override on
+  // the mount (custom plate builder) beats both.
+  const textFill = labelColor ?? template.labelColor ?? palette.text
+  const textSize = labelSize ?? template.labelSize ?? fontSize
 
   // Plates stay opaque whatever the cable visibility. Fading them let the rail
   // strips and the U grid show through the gear, which reads as a rendering
@@ -270,8 +305,8 @@ export const Faceplate = memo(function Faceplate({
           x={labelX}
           y={bandY}
           clipPath={`url(#${clipId})`}
-          fontSize={fontSize}
-          fill={palette.text}
+          fontSize={textSize}
+          fill={textFill}
           dominantBaseline="central"
           textAnchor="start"
           fontFamily="Inter, system-ui, sans-serif"
@@ -288,17 +323,23 @@ export const Faceplate = memo(function Faceplate({
           const isDraft = draftPortId === port.id
           const { w, h } = portShapeSize(port.type, portScale)
           const stroke = isDraft ? palette.accent : patchColor ?? palette.portBezel
+          // The custom plate builder's per-port colour overrides the jack fill;
+          // the bezel follows it so a recoloured socket still reads as a socket.
+          const jackFill = port.color ?? palette.portRecess
+          // Power sockets are visual only — they never grab a cable.
+          const cableable = port.type !== 'power'
+          const interactive = interactivePorts && cableable
 
           return (
             <g
               key={port.id}
               transform={`translate(${cx} ${cy})`}
               style={{
-                cursor: interactivePorts ? 'crosshair' : undefined,
-                pointerEvents: interactivePorts ? 'auto' : 'none',
+                cursor: interactive ? 'crosshair' : undefined,
+                pointerEvents: interactive ? 'auto' : 'none',
               }}
               onPointerDown={
-                interactivePorts
+                interactive
                   ? (e) => {
                       // Keep the press off the plate: it would start an HTML5
                       // drag of the mount instead of a cable.
@@ -309,7 +350,7 @@ export const Faceplate = memo(function Faceplate({
                   : undefined
               }
               onPointerUp={
-                interactivePorts
+                interactive
                   ? (e) => {
                       e.stopPropagation()
                       onPortPointerUp?.(port.id)
@@ -318,15 +359,17 @@ export const Faceplate = memo(function Faceplate({
               }
             >
               {/* Grab area: a 6px socket is too small to aim a cable at. */}
-              {interactivePorts && <circle r={Math.max(w, h) * 0.85} fill="transparent" />}
+              {interactive && <circle r={Math.max(w, h) * 0.85} fill="transparent" />}
               {port.type === 'rj45' ? (
                 <path
                   d={rj45Path(w, h)}
-                  fill={palette.portRecess}
+                  fill={jackFill}
                   stroke={stroke}
                   strokeWidth={isDraft ? 1.4 : 0.9}
                   strokeLinejoin="round"
                 />
+              ) : port.type === 'power' ? (
+                <PowerJack w={w} h={h} fill={jackFill} stroke={stroke} />
               ) : (
                 <>
                   <rect
@@ -335,7 +378,7 @@ export const Faceplate = memo(function Faceplate({
                     width={w}
                     height={h}
                     rx={1}
-                    fill={palette.portRecess}
+                    fill={jackFill}
                     stroke={stroke}
                     strokeWidth={isDraft ? 1.4 : 0.9}
                   />

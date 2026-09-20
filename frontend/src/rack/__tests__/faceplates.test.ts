@@ -10,7 +10,7 @@ import {
 import { UNRACKABLE_TYPES } from '@/utils/rackable'
 import { RACK_COLUMNS, type PortType } from '@/types'
 
-const ALLOWED_PORT_TYPES: PortType[] = ['rj45', 'sfp', 'sfp+']
+const ALLOWED_PORT_TYPES: PortType[] = ['rj45', 'sfp', 'sfp+', 'power']
 
 describe('faceplate catalog', () => {
   it('has unique ids', () => {
@@ -179,6 +179,29 @@ describe('faceplate catalog', () => {
     const groups = faceplateGroups()
     expect(groups.flatMap((g) => g.items)).toHaveLength(FACEPLATES.length)
     expect(new Set(groups.map((g) => g.group)).size).toBe(groups.length)
+  })
+})
+
+describe('custom plate builder', () => {
+  const blanks = FACEPLATES.filter((p) => p.group === 'Custom')
+
+  it('offers a black and a white blank starter, bare of fitted art and ports', () => {
+    expect(blanks.map((p) => p.id).sort()).toEqual(['blank-black', 'blank-white'])
+    for (const plate of blanks) {
+      // A "blank" is just the panel: no vents, bays, strips or outlets to fight.
+      expect(plate.elements.every((e) => e.kind === 'panel')).toBe(true)
+      // The builder is the palette — the user drops their own sockets onto it.
+      expect(plate.ports).toHaveLength(0)
+    }
+  })
+
+  it('gives each blank a label colour/size that matches its box', () => {
+    const black = getFaceplate('blank-black')
+    const white = getFaceplate('blank-white')
+    // Light text on the dark plate, dark text on the light one.
+    expect(black.labelColor).toBe('#e6e6e6')
+    expect(white.labelColor).toBe('#161b22')
+    expect(black.labelSize).toBeDefined()
   })
 })
 

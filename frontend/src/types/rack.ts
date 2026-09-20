@@ -48,8 +48,11 @@ export interface Rack {
 // Ports
 // ---------------------------------------------------------------------------
 
-/** Only data ports for now — power cabling is out of v1. */
-export type PortType = 'rj45' | 'sfp' | 'sfp+'
+/**
+ * A port's connector family. `power` is the custom plate builder's visual-only
+ * socket — it draws but is never a cable endpoint (power cabling is out of v1).
+ */
+export type PortType = 'rj45' | 'sfp' | 'sfp+' | 'power'
 
 export interface Port {
   id: string
@@ -61,6 +64,8 @@ export interface Port {
    */
   x: number
   y: number
+  /** Jack fill override — the custom plate builder lets any socket be any colour. */
+  color?: string
 }
 
 /**
@@ -136,6 +141,14 @@ export interface FaceplateTemplate {
   alwaysShowPorts?: boolean
   /** Name band. Ports and artwork must stay clear of it. */
   labelBox: LabelBox
+  /**
+   * The name band's silk text. `labelColor` overrides the theme's label colour
+   * and `labelSize` overrides the height-computed one — the custom plate
+   * builder's blank plates use these to match their box (white text on black,
+   * black text on white). A mount can override both per plate.
+   */
+  labelColor?: string
+  labelSize?: number
   /** Devices get a status LED; accessories do not. */
   statusLed?: boolean
 }

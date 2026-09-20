@@ -60,6 +60,8 @@ export function DeviceFaceplateEditor({ value, label, status, editable, onChange
           uHeight={value.uHeight}
           colSpan={value.colSpan}
           color={value.color ?? undefined}
+          labelColor={plate.labelColor}
+          labelSize={plate.labelSize}
           interactive={editable && positioning}
           selectedPortId={selectedPortId}
           onSelect={setSelectedPortId}

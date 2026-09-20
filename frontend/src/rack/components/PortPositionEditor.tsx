@@ -44,6 +44,12 @@ interface Props {
   colSpan: number
   color?: string
   /**
+   * The plate's silk-text colour/size, forwarded to the drawn plate so a custom
+   * plate (blank black/white) previews with the label that matches its box.
+   */
+  labelColor?: string
+  labelSize?: number
+  /**
    * Width a full-width (12-column) plate is drawn at; a narrower plate takes
    * its fraction of it. Left out, the editor measures the space it was given
    * and fills it — a plate that renders at a third of the panel is one nobody
@@ -69,6 +75,8 @@ export function PortPositionEditor({
   uHeight,
   colSpan,
   color,
+  labelColor,
+  labelSize,
   fullWidth,
   interactive,
   selectedPortId,
@@ -194,6 +202,8 @@ export function PortPositionEditor({
           width={plateW}
           height={plateH}
           colorOverride={color}
+          labelColor={labelColor}
+          labelSize={labelSize}
           portScale={zoom * scale}
           revealed
         />

@@ -42,9 +42,14 @@ export const CABLE_COLOR_PRESETS: string[] = [
 /** Property keys a cable is most often annotated with, offered as one-click adds. */
 export const CABLE_PROPERTY_SUGGESTIONS = ['Length', 'VLAN', 'Speed', 'Category', 'Patch ref']
 
-/** Cable type implied by the port a patch starts from. */
-export const PORT_CABLE_TYPE: Record<PortType, CableType> = {
+/**
+ * Cable type implied by the port a patch starts from. `power` is the custom
+ * plate builder's visual-only socket: it maps to no cable type (undefined), so
+ * it can never seed an ethernet/fiber run — power cabling is out of v1.
+ */
+export const PORT_CABLE_TYPE: Record<PortType, CableType | undefined> = {
   rj45: 'ethernet',
   sfp: 'fiber',
   'sfp+': 'fiber',
+  power: undefined,
 }

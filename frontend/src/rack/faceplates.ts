@@ -418,7 +418,41 @@ export const FACEPLATES: FaceplateTemplate[] = [
     ports: [],
   },
 
-  // --- Accessories --------------------------------------------------------
+  // --- Custom plate builder ------------------------------------------------
+  // Two blank starters: a bare black or white box with no fitted art, so the
+  // user drops and positions their own ports (RJ45 / SFP / power). The blank
+  // plates carry no ship ports at all — the whole point is building from
+  // nothing — and `labelColor`/`labelSize` make the silk text match its box.
+  {
+    id: 'blank-black',
+    label: 'Custom plate — black',
+    kind: 'device',
+    group: 'Custom',
+    uHeight: 1,
+    colSpan: RACK_COLUMNS,
+    statusLed: true,
+    labelBox: LABEL_LEFT,
+    labelColor: '#e6e6e6',
+    labelSize: 10,
+    elements: [{ kind: 'panel', fill: '#161b22', stroke: '#0d1117' }],
+    ports: [],
+  },
+  {
+    id: 'blank-white',
+    label: 'Custom plate — white',
+    kind: 'device',
+    group: 'Custom',
+    uHeight: 1,
+    colSpan: RACK_COLUMNS,
+    statusLed: true,
+    labelBox: LABEL_LEFT,
+    labelColor: '#161b22',
+    labelSize: 10,
+    elements: [{ kind: 'panel', fill: '#e8e8e8', stroke: '#0d1117' }],
+    ports: [],
+  },
+
+  // --- Accessories ----------------------------------------------------------
   {
     id: 'blank-1u',
     label: 'Blank panel 1U',
@@ -516,6 +550,11 @@ const DEVICE_TYPE_BY_FACEPLATE: Record<string, string> = {
   'server-4u-storage': 'server',
   'sff-half': 'computer',
   'mini-third': 'computer',
+  // A custom blank plate holds whatever the user builds on it, so the
+  // inventory row gets the generic server type — the same fallback a
+  // never-discovered device wears.
+  'blank-black': 'server',
+  'blank-white': 'server',
   'switch-8': 'switch',
   'switch-24': 'switch',
   'switch-48': 'switch',

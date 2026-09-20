@@ -130,7 +130,7 @@ export interface RackSavePayload {
 
 const WIDTH_STANDARDS: RackWidthStandard[] = ['19', '10']
 const NUMBERINGS: RackNumbering[] = ['bottom-up', 'top-down']
-const PORT_TYPES: PortType[] = ['rj45', 'sfp', 'sfp+']
+const PORT_TYPES: PortType[] = ['rj45', 'sfp', 'sfp+', 'power']
 const DEVICE_STATUSES: DeviceStatus[] = ['online', 'offline', 'unknown']
 
 function asWidthStandard(v: string): RackWidthStandard {
@@ -188,6 +188,9 @@ function asPorts(raw: unknown[]): Port[] {
       type,
       x: typeof p.x === 'number' ? p.x : 0.5,
       y: typeof p.y === 'number' ? p.y : 0.5,
+      // The custom plate builder's per-port colour is optional; a blank/absent
+      // value leaves the plate's theme artwork in charge.
+      color: typeof p.color === 'string' ? p.color : undefined,
     })
   }
   return ports
@@ -408,7 +411,10 @@ export function buildSavePayload(
   }
 }
 
-/** Cable type implied by the port a patch starts from. */
-export function cableTypeForPort(type: PortType): CableType {
+/**
+ * Cable type implied by the port a patch starts from. A `power` socket (custom
+ * plate builder) has no cable type — it is visual only, never a cable endpoint.
+ */
+export function cableTypeForPort(type: PortType): CableType | undefined {
   return PORT_CABLE_TYPE[type]
 }
