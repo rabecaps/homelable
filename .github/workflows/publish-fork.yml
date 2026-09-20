@@ -1,12 +1,24 @@
-name: Docker
+name: Publish (fork)
 
-# DISABLED-IN-FORK: upstream's publish workflow targets ghcr.io/pouzor/* which a fork's
-# GITHUB_TOKEN cannot write. Fork publishing is done by .github/workflows/publish-fork.yml
-# under the ghcr.io/rabecaps/* namespace. Kept here (manual dispatch only) so upstream syncs
-# stay conflict-free; if upstream changes its publish CI, this file will conflict on merge
-# and you should keep OUR publish-fork.yml as the source of truth.
+# Fork-owned publish workflow. This repo (rabecaps/homelable) is the owner's update-survival
+# line: we build and publish the images under OUR ghcr namespace so the homelab can stop pulling
+# upstream `latest`. Upstream's `docker-publish.yml` is DISABLED-IN-FORK (manual trigger only) and
+# exists here solely so upstream syncs stay conflict-free; this file is the live one.
+#
+# Tag naming (decided): ghcr.io/rabecaps/homelable-<component>:<ref>
+#   - push to main            ->  :main and :latest
+#   - push to feat/* or fix/* ->  :<branchname>            (preview builds for the fork pipeline)
+#   - semver tag vX.Y.Z       ->  :vX.Y.Z, :X.Y, :X
+# Components: backend, frontend, frontend-standalone, mcp.
+
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -18,19 +30,19 @@ jobs:
     strategy:
       matrix:
         include:
-          - image: ghcr.io/pouzor/homelable-backend
+          - image: ghcr.io/rabecaps/homelable-backend
             context: .
             dockerfile: Dockerfile.backend
             build_args: ""
-          - image: ghcr.io/pouzor/homelable-frontend
+          - image: ghcr.io/rabecaps/homelable-frontend
             context: .
             dockerfile: Dockerfile.frontend
             build_args: ""
-          - image: ghcr.io/pouzor/homelable-frontend-standalone
+          - image: ghcr.io/rabecaps/homelable-frontend-standalone
             context: .
             dockerfile: Dockerfile.frontend
             build_args: "VITE_STANDALONE=true"
-          - image: ghcr.io/pouzor/homelable-mcp
+          - image: ghcr.io/rabecaps/homelable-mcp
             context: ./mcp
             dockerfile: Dockerfile.mcp
             build_args: ""
