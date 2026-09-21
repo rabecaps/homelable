@@ -24,6 +24,7 @@ import { edgeTypes } from './edges/edgeTypes'
 import { SearchBar } from './SearchBar'
 import { AlignmentGuides } from './AlignmentGuides'
 import { FloorMapLayer } from './FloorMapLayer'
+import { LabelPointerLayer } from './nodes/LabelPointerLayer'
 import { useAlignmentGuides } from '@/hooks/useAlignmentGuides'
 import { setViewportCenterProjector } from '@/utils/viewportCenter'
 import type { NodeData, EdgeData } from '@/types'
@@ -260,6 +261,7 @@ export function CanvasContainer({ onConnect: onConnectProp, onEdgeDoubleClick, o
           color={theme.colors.canvasDotColor}
         />
         <FloorMapLayer />
+        <LabelPointerLayer />
         <SearchBar onOpenInventory={onOpenInventory} />
         <AlignmentGuides guides={guides} />
         <Controls>

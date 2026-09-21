@@ -6,7 +6,7 @@
  * with the logical canvas leaks that canvas' pan/zoom and pane size into the
  * rack flow when the user switches back and forth.
  */
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -18,17 +18,81 @@ import {
   type NodeChange,
   type Viewport,
 } from '@xyflow/react'
-import { Plus } from 'lucide-react'
+import { Plus, Type } from 'lucide-react'
 import { rackHeight, rackWidth } from '../layout'
 import { useRackStore } from '../store'
 import { useRackPalette } from '../rackTheme'
 import { useAutoStatusRefresh } from '../useAutoStatusRefresh'
 import { CableLayer } from './CableLayer'
+import { LabelPointerLayer } from './LabelPointerLayer'
 import { RackDeviceModal } from './RackDeviceModal'
 import { RackFlowNode } from './RackFlowNode'
 import { RackSettingsModal } from './RackSettingsModal'
+import { TextNode } from '@/components/canvas/nodes/TextNode'
+import { TextModal, type TextFormData, type TextTargetOption } from '@/components/modals/TextModal'
+import type { Cable, Rack, RackDevice, RackLabel } from '@/types'
 
-const nodeTypes = { rack: RackFlowNode }
+const nodeTypes = { rack: RackFlowNode, text: TextNode }
+
+/** Map the shared TextModal form's style fields onto a rack label's style pod. */
+function rackPodFromForm(data: TextFormData): NonNullable<RackLabel['custom_colors']> {
+  return {
+    font: data.font,
+    text_color: data.text_color,
+    text_size: data.text_size,
+    border: data.border_color,
+    border_style: data.border_style,
+    border_width: data.border_width,
+    background: data.background_color,
+  }
+}
+
+/** Prefill the edit modal from an existing rack label. */
+function rackInitialFromLabel(id: string, labels: RackLabel[]): Partial<TextFormData> | undefined {
+  const label = labels.find((l) => l.id === id)
+  if (!label) return undefined
+  const rc = label.custom_colors ?? {}
+  return {
+    text: label.label,
+    font: rc.font ?? 'inter',
+    text_color: rc.text_color ?? '#e6edf3',
+    text_size: rc.text_size ?? 14,
+    border_color: rc.border ?? '#30363d',
+    border_style: (rc.border_style ?? 'none') as TextFormData['border_style'],
+    border_width: rc.border_width ?? 1,
+    background_color: rc.background ?? '#00000000',
+    target: label.target,
+    anchor_side: label.anchorSide ?? 'auto',
+  }
+}
+
+/** Everything on the active rack canvas that a label can point at. */
+function rackTargetOptions(
+  racks: Rack[],
+  devices: RackDevice[],
+  cables: Cable[],
+): TextTargetOption[] {
+  const options: TextTargetOption[] = []
+  for (const rack of racks) {
+    options.push({ target: { kind: 'node', id: rack.id }, label: rack.name })
+  }
+  for (const device of devices) {
+    options.push({ target: { kind: 'device', id: device.id }, label: device.label })
+    for (const port of device.ports) {
+      options.push({
+        target: { kind: 'port', deviceId: device.id, portId: port.id },
+        label: `${device.label} · ${port.label}`,
+      })
+    }
+  }
+  for (const cable of cables) {
+    options.push({
+      target: { kind: 'cable', id: cable.id, anchorRatio: 0.5 },
+      label: cable.label ? `Cable · ${cable.label}` : `Cable · ${cable.type}`,
+    })
+  }
+  return options
+}
 
 function RackCanvasInner() {
   const racks = useRackStore((s) => s.racks)
@@ -50,6 +114,17 @@ function RackCanvasInner() {
   const endCableDrag = useRackStore((s) => s.endCableDrag)
   const cableDraft = useRackStore((s) => s.cableDraft)
   const cancelCableDraft = useRackStore((s) => s.cancelCableDraft)
+  // Labels / callout notes
+  const labels = useRackStore((s) => s.labels)
+  const devices = useRackStore((s) => s.devices)
+  const cables = useRackStore((s) => s.cables)
+  const addLabel = useRackStore((s) => s.addLabel)
+  const moveLabel = useRackStore((s) => s.moveLabel)
+  const updateLabel = useRackStore((s) => s.updateLabel)
+  const removeLabel = useRackStore((s) => s.removeLabel)
+
+  const [labelEditorOpen, setLabelEditorOpen] = useState(false)
+  const [editingLabel, setEditingLabel] = useState<{ id: string } | null>(null)
 
   const palette = useRackPalette()
   const { setViewport: applyViewport, screenToFlowPosition } = useReactFlow()
@@ -117,8 +192,9 @@ function RackCanvasInner() {
   }, [selectedCableId, cableDraft, removeSelectedCable, selectCable, cancelCableDraft])
 
   const nodes: Node[] = useMemo(
-    () =>
-      racks.map((rack) => ({
+    () => [
+      // Racks first, then labels on top (later nodes paint above earlier ones).
+      ...racks.map((rack) => ({
         id: rack.id,
         type: 'rack',
         position: rack.position,
@@ -126,19 +202,52 @@ function RackCanvasInner() {
         draggable: !cableMode,
         style: { width: rackWidth(rack), height: rackHeight(rack) },
       })),
-    [racks, cableMode],
+      ...labels.map((label) => ({
+        id: label.id,
+        type: 'text',
+        position: label.position,
+        data: {
+          type: 'text',
+          label: label.label,
+          custom_colors: label.custom_colors ?? {},
+        },
+        draggable: !cableMode,
+        style: { width: label.width ?? 200, height: label.height ?? 60 },
+      })),
+    ],
+    [racks, labels, cableMode],
   )
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       for (const change of changes) {
-        if (change.type === 'position' && change.position) {
-          moveRack(change.id, change.position)
-        }
+        if (change.type !== 'position' || !change.position) continue
+        const isLabel = labels.some((l) => l.id === change.id)
+        if (isLabel) moveLabel(change.id, change.position)
+        else moveRack(change.id, change.position)
       }
     },
-    [moveRack],
+    [moveRack, moveLabel, labels],
   )
+
+  // Delete/Backspace removes the selected label before falling through to the
+  // cable handler: a label is a flow node the same key handling would leave to
+  // React Flow, but we branch on it explicitly so the pointer goes with it.
+  useEffect(() => {
+    if (!editingLabel) return
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        removeLabel(editingLabel.id)
+        setEditingLabel(null)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [editingLabel, removeLabel])
 
   const onMoveEnd = useCallback(
     (_: unknown, viewport: Viewport) => setViewport(viewport),
@@ -161,7 +270,12 @@ function RackCanvasInner() {
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
       onMoveEnd={onMoveEnd}
-      onPaneClick={() => selectDevice(null)}
+      onPaneClick={() => { selectDevice(null); setEditingLabel(null) }}
+      onNodeDoubleClick={(_event, node) => {
+        if (node.type === 'text' && labels.some((l) => l.id === node.id)) {
+          setEditingLabel({ id: node.id })
+        }
+      }}
       minZoom={0.2}
       maxZoom={3}
       proOptions={{ hideAttribution: true }}
@@ -170,6 +284,7 @@ function RackCanvasInner() {
       <Background variant={BackgroundVariant.Dots} gap={24} size={1} color={palette.dot} />
       <Controls />
       <CableLayer />
+      <LabelPointerLayer />
       {!loading && racks.length === 0 && (
         // z-10 clears .react-flow__renderer (z-index 4); without it the pane sits
         // on top and swallows the clicks as a canvas drag.
@@ -193,8 +308,49 @@ function RackCanvasInner() {
           </div>
         </div>
       )}
+      {/* An empty rack canvas still wants a label/note annotation. */}
+      {!loading && (
+        <button
+          type="button"
+          onClick={() => setLabelEditorOpen(true)}
+          className="absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded border border-[#21262d] bg-[#161b22] px-2.5 py-1.5 text-xs text-[#8b949e] hover:border-[#00d4ff] hover:text-[#00d4ff] cursor-pointer"
+          data-testid="add-rack-label"
+        >
+          <Type size={14} /> Add label
+        </button>
+      )}
     </ReactFlow>
     {/* Editors live outside the flow so a dialog is never clipped by it. */}
+    <TextModal
+      key={editingLabel?.id ?? 'rack-label-add'}
+      open={labelEditorOpen || !!editingLabel}
+      onClose={() => { setLabelEditorOpen(false); setEditingLabel(null) }}
+      onSubmit={(data: TextFormData) => {
+        if (editingLabel) {
+          updateLabel(editingLabel.id, {
+            label: data.text,
+            custom_colors: rackPodFromForm(data),
+            target: data.target,
+            anchorSide: data.anchor_side,
+          })
+          setEditingLabel(null)
+        } else {
+          addLabel({
+            label: data.text,
+            custom_colors: rackPodFromForm(data),
+            target: data.target,
+            anchorSide: data.anchor_side,
+            width: 200,
+            height: 60,
+          })
+          setLabelEditorOpen(false)
+        }
+      }}
+      onDelete={editingLabel ? () => { removeLabel(editingLabel.id); setEditingLabel(null) } : undefined}
+      initial={editingLabel ? rackInitialFromLabel(editingLabel.id, labels) : undefined}
+      title={editingLabel ? 'Edit Label' : 'Add Label'}
+      targets={rackTargetOptions(racks, devices, cables)}
+    />
     <RackDeviceModal />
     <RackSettingsModal />
     </>

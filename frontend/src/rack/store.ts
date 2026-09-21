@@ -235,6 +235,7 @@ interface RackState {
     label?: string
     custom_colors?: RackLabel['custom_colors']
     target?: LabelTarget
+    anchorSide?: RackLabel['anchorSide']
     position?: { x: number; y: number }
     width?: number
     height?: number
@@ -950,6 +951,7 @@ export const useRackStore = create<RackState>((set, get) => {
         label: input?.label ?? '',
         custom_colors: input?.custom_colors,
         target: input?.target ?? { kind: 'none' },
+        anchorSide: input?.anchorSide,
         position: input?.position ?? {
           x: 80 + get().labels.length * 40,
           y: 60 + get().labels.length * 40,

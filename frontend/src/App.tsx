@@ -29,7 +29,7 @@ import { ZigbeeImportModal } from '@/components/zigbee/ZigbeeImportModal'
 import { ZwaveImportModal } from '@/components/zwave/ZwaveImportModal'
 import { ProxmoxImportModal } from '@/components/proxmox/ProxmoxImportModal'
 import { GroupRectModal, type GroupRectFormData } from '@/components/modals/GroupRectModal'
-import { TextModal, type TextFormData } from '@/components/modals/TextModal'
+import { TextModal, type TextFormData, type TextTargetOption } from '@/components/modals/TextModal'
 import { ThemeModal } from '@/components/modals/ThemeModal'
 import { CustomStyleModal } from '@/components/modals/CustomStyleModal'
 import { SearchModal } from '@/components/modals/SearchModal'
@@ -693,6 +693,12 @@ export default function App() {
           text_color: data.text_color,
           text_size: data.text_size,
           font: data.font,
+          // The callout target must persist: stored in the opaque
+          // custom_colors blob (not top-level data.*) because the API
+          // serializer only persists known node columns — a top-level field
+          // would be dropped on reload (the old text_content bug).
+          target: data.target,
+          anchor_side: data.anchor_side,
         },
       },
       width: 200,
@@ -719,6 +725,8 @@ export default function App() {
         text_color: data.text_color,
         text_size: data.text_size,
         font: data.font,
+        target: data.target,
+        anchor_side: data.anchor_side,
       },
     })
     setEditingTextId(null)
@@ -730,6 +738,26 @@ export default function App() {
     deleteNode(editingTextId)
     setEditingTextId(null)
   }, [editingTextId, deleteNode, setEditingTextId, snapshotHistory])
+
+  // Everything on the active logical canvas that a label/callout can point at:
+  // canvas nodes and edges. The `target` union is stashed in custom_colors so
+  // it survives the API round-trip (see the storage comment in handleAddText).
+  const logicalTextTargets = useCallback((): TextTargetOption[] => {
+    const options: TextTargetOption[] = []
+    for (const node of nodes) {
+      if (node.data?.type === 'text' || ['group', 'groupRect'].includes(node.data?.type ?? '')) {
+        continue
+      }
+      options.push({ target: { kind: 'node', id: node.id }, label: node.data?.label ?? node.id })
+    }
+    for (const edge of edges) {
+      const label = typeof edge.data?.label === 'string' && edge.data.label
+        ? edge.data.label
+        : edge.id
+      options.push({ target: { kind: 'edge', id: edge.id }, label: `Edge · ${label}` })
+    }
+    return options
+  }, [nodes, edges])
 
   const handleDeleteGroupRect = useCallback(() => {
     if (!editingGroupRectId) return
@@ -1381,6 +1409,7 @@ export default function App() {
           onClose={() => setAddTextOpen(false)}
           onSubmit={handleAddText}
           title="Add Text"
+          targets={logicalTextTargets()}
         />
 
         <TextModal
@@ -1402,9 +1431,12 @@ export default function App() {
               border_style: (rc.border_style ?? 'none') as TextFormData['border_style'],
               border_width: rc.border_width ?? 1,
               background_color: rc.background ?? '#00000000',
+              target: rc.target ?? { kind: 'none' },
+              anchor_side: (rc.anchor_side ?? 'auto') as TextFormData['anchor_side'],
             }
           })()}
           title="Edit Text"
+          targets={logicalTextTargets()}
         />
 
         {/* key forces re-mount on open so useState captures current theme as original */}

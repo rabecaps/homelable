@@ -5,8 +5,14 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { hexToRgba, rgbaToHex8 } from '@/utils/colorUtils'
+import type { AnchorSide, LabelTarget } from '@/types'
 
 export type TextBorderStyle = 'solid' | 'dashed' | 'dotted' | 'double' | 'none'
+
+export interface TextTargetOption {
+  target: LabelTarget
+  label: string
+}
 
 export interface TextFormData {
   text: string
@@ -17,6 +23,10 @@ export interface TextFormData {
   border_style: TextBorderStyle
   border_width: number
   background_color: string
+  /** What the label points at. `none` = plain annotation. */
+  target: LabelTarget
+  /** Which edge of the label box the leader lands on. */
+  anchor_side: AnchorSide
 }
 
 const BORDER_STYLES: { value: TextBorderStyle; label: string; preview: string }[] = [
@@ -60,6 +70,8 @@ const DEFAULT_FORM: TextFormData = {
   border_style: 'none',
   border_width: 1,
   background_color: '#00000000',
+  target: { kind: 'none' },
+  anchor_side: 'auto',
 }
 
 interface TextModalProps {
@@ -69,9 +81,25 @@ interface TextModalProps {
   onDelete?: () => void
   initial?: Partial<TextFormData>
   title?: string
+  /**
+   * What the active canvas can point at, e.g. `[{ target: { kind:'node',
+   * id:'n1' }, label:'Router' }, …]`. An empty (or absent) list renders only
+   * "Nothing" — the free-annotation case shared by every canvas. Each canvas
+   * (logical via App, rack via RackCanvas) builds this from its own nodes /
+   * devices / ports / edges / cables.
+   */
+  targets?: TextTargetOption[]
 }
 
-export function TextModal({ open, onClose, onSubmit, onDelete, initial, title = 'Add Text' }: TextModalProps) {
+export function TextModal({
+  open,
+  onClose,
+  onSubmit,
+  onDelete,
+  initial,
+  title = 'Add Text',
+  targets = [],
+}: TextModalProps) {
   const [form, setForm] = useState<TextFormData>({ ...DEFAULT_FORM, ...initial })
 
   const set = <K extends keyof TextFormData>(key: K, value: TextFormData[K]) =>
@@ -82,6 +110,23 @@ export function TextModal({ open, onClose, onSubmit, onDelete, initial, title = 
     onSubmit(form)
     onClose()
   }
+
+  // A target is "chosen" when it points at something (never for kind:none).
+  const isChosen = (t: LabelTarget) => t.kind !== 'none'
+
+  // The selector offers "Nothing" plus one entry per distinct kind present in
+  // the available targets (node / device / port / edge / cable).
+  const kindLabel: Record<LabelTarget['kind'], string> = {
+    none: 'Nothing',
+    node: 'Node',
+    device: 'Device',
+    port: 'Port',
+    edge: 'Edge',
+    cable: 'Cable',
+  }
+  const presentKinds: LabelTarget['kind'][] = targets
+    .map((o) => o.target.kind)
+    .filter((k, i, arr) => k !== 'none' && arr.indexOf(k) === i)
 
   const colorFields = [
     { key: 'text_color' as const,       label: 'Text' },
@@ -243,6 +288,90 @@ export function TextModal({ open, onClose, onSubmit, onDelete, initial, title = 
               </div>
             </div>
           )}
+
+          {/* Point at — the callout target (data, not a visual property).
+              Each canvas supplies `targets`; "Nothing" is the default and the
+              only option on a canvas with nothing to point at. */}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Point at</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {(['none', ...presentKinds] as LabelTarget['kind'][]).map((kind) => {
+                const active = form.target.kind === kind
+                return (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => {
+                      if (kind === 'none') {
+                        set('target', { kind: 'none' })
+                      } else {
+                        // Jump to the first available item of this kind.
+                        const first = targets.find((o) => o.target.kind === kind)
+                        if (first) set('target', first.target)
+                      }
+                    }}
+                    className={`flex items-center justify-center h-8 rounded text-xs transition-colors cursor-pointer ${modalStyles['modal-interactive']}`}
+                    style={{
+                      background: active ? '#00d4ff22' : '#21262d',
+                      border: `1px solid ${active ? '#00d4ff88' : '#30363d'}`,
+                      color: active ? '#00d4ff' : '#8b949e',
+                    }}
+                  >
+                    {kindLabel[kind]}
+                  </button>
+                )
+              })}
+            </div>
+            {isChosen(form.target) && (
+              <Select
+                value={JSON.stringify(form.target)}
+                onValueChange={(v: string | null) => {
+                  if (!v) return
+                  const found = targets.find((o) => JSON.stringify(o.target) === v)
+                  if (found) set('target', found.target)
+                }}
+              >
+                <SelectTrigger className={`bg-[#21262d] border-[#30363d] text-sm h-8 w-full cursor-pointer ${modalStyles['modal-interactive']} ${modalStyles['modal-radius']}`}>
+                  <SelectValue>
+                    {targets.find((o) => JSON.stringify(o.target) === JSON.stringify(form.target))?.label ?? 'Select…'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="bg-[#21262d] border-[#30363d] w-full">
+                  {targets.filter((o) => o.target.kind === form.target.kind).map((o) => (
+                    <SelectItem
+                      key={JSON.stringify(o.target)}
+                      value={JSON.stringify(o.target)}
+                      className="text-sm"
+                    >
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {/* Leader landing edge on the label box. */}
+            <div className="flex flex-wrap gap-1.5">
+              {(['auto', 'top', 'right', 'bottom', 'left', 'center'] as AnchorSide[]).map((side) => {
+                const active = form.anchor_side === side
+                return (
+                  <button
+                    key={side}
+                    type="button"
+                    title={`Leader ${side}`}
+                    onClick={() => set('anchor_side', side)}
+                    className={`flex items-center justify-center h-8 rounded text-xs transition-colors cursor-pointer ${modalStyles['modal-interactive']}`}
+                    style={{
+                      background: active ? '#00d4ff22' : '#21262d',
+                      border: `1px solid ${active ? '#00d4ff88' : '#30363d'}`,
+                      color: active ? '#00d4ff' : '#8b949e',
+                    }}
+                  >
+                    {side}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           <div className="flex justify-between gap-2 pt-1">
             {onDelete && (

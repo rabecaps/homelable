@@ -254,6 +254,8 @@ export interface NodeData extends Record<string, unknown> {
      * dropped on reload, exactly like the old `text_content` bug.
      */
     target?: LabelTarget
+    /** Which label-box edge the callout leader lands on. */
+    anchor_side?: AnchorSide
   }
   /**
    * Collapsible zone state (type === 'groupRect'). When true, the zone hides
