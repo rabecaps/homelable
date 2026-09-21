@@ -7,7 +7,7 @@
  */
 // Type-only, so the cycle with `./index` (which re-exports this module) is
 // erased at compile time. Cables reuse the logical canvas' property records.
-import type { NodeProperty, Waypoint } from './index'
+import type { NodeProperty, Waypoint, LabelTarget, AnchorSide } from './index'
 
 /** Horizontal grid inside a rack. 12 columns = full width, 6 = half, 4 = third. */
 export const RACK_COLUMNS = 12
@@ -260,6 +260,45 @@ export interface Cable {
 
 /** How the cabling overlay behaves. */
 export type CableVisibility = 'hover' | 'always' | 'hidden'
+
+// ---------------------------------------------------------------------------
+// Labels / callout notes
+// ---------------------------------------------------------------------------
+
+/**
+ * A free-floating label/callout note on a rack canvas.
+ *
+ * Rendered as a `text` React Flow node (reusing `TextNode`), so the box looks
+ * and behaves exactly like a logical-canvas text label. `custom_colors` drives
+ * the same font / size / text-colour / background controls, and `target` is a
+ * first-class field (unlike the logical canvas' `custom_colors.target` stash)
+ * because the rack serializer owns its own payload shape and is the whole
+ * point of a rack label.
+ */
+export interface RackLabel {
+  id: string
+  /** The note's text — the source of truth, edited via TextModal. */
+  label: string
+  /** Same opaque style blob `TextNode` reads (`font`, `text_size`, …). */
+  custom_colors?: {
+    font?: string
+    text_color?: string
+    text_size?: number
+    border?: string
+    border_style?: 'solid' | 'dashed' | 'dotted' | 'double' | 'none'
+    border_width?: number
+    background?: string
+  }
+  /** What the label points at. `none` = a plain annotation, no leader. */
+  target: LabelTarget
+  /** Which edge of the label box the leader lands on. */
+  anchorSide?: AnchorSide
+  /** Position on the canvas (top-left of the box). */
+  position: { x: number; y: number }
+  /** Flow node box size, draggable via NodeResizer (min 40×20). */
+  width?: number
+  height?: number
+}
 
 // ---------------------------------------------------------------------------
 // Inventory

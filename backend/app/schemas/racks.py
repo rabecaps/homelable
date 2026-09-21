@@ -158,6 +158,35 @@ class RackCableSave(BaseModel):
         return cleaned
 
 
+class RackLabelSave(BaseModel):
+    """A free-floating label/callout note on a rack canvas.
+
+    `custom_colors` and `target` are opaque JSON by design — the frontend owns
+    their shape (the same stash `TextNode` reads, plus the `LabelTarget` union),
+    and the backend only needs them to survive the round-trip intact.
+    """
+
+    id: str
+    label: str = ""
+    custom_colors: dict[str, Any] = {}
+    target: dict[str, Any] = {}
+    anchor_side: str | None = None
+    pos_x: float = 0
+    pos_y: float = 0
+    width: float | None = None
+    height: float | None = None
+
+    @field_validator("custom_colors", mode="before")
+    @classmethod
+    def _dict_custom_colors(cls, v: Any) -> dict[str, Any]:
+        return v if isinstance(v, dict) else {}
+
+    @field_validator("target", mode="before")
+    @classmethod
+    def _dict_target(cls, v: Any) -> dict[str, Any]:
+        return v if isinstance(v, dict) else {}
+
+
 class RackSaveRequest(BaseModel):
     """Full rack state for one design — upserted, with anything missing pruned.
 
@@ -169,6 +198,7 @@ class RackSaveRequest(BaseModel):
     racks: list[RackSave] = []
     devices: list[RackDeviceSave] = []
     cables: list[RackCableSave] = []
+    labels: list[RackLabelSave] = []
     # Pan/zoom, stored on the design's shared CanvasState row like the logical canvas.
     viewport: dict[str, Any] = {}
 
@@ -309,10 +339,32 @@ class RackCableResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RackLabelResponse(BaseModel):
+    id: str
+    design_id: str
+    label: str = ""
+    custom_colors: dict[str, Any] = {}
+    target: dict[str, Any] = {}
+    anchor_side: str | None = None
+    pos_x: float = 0
+    pos_y: float = 0
+    width: float | None = None
+    height: float | None = None
+
+    @field_validator("custom_colors", "target", mode="before")
+    @classmethod
+    def _dict_or_empty(cls, v: Any) -> dict[str, Any]:
+        """Rows written before the column existed read back as NULL."""
+        return v if isinstance(v, dict) else {}
+
+    model_config = {"from_attributes": True}
+
+
 class RackStateResponse(BaseModel):
     racks: list[RackResponse]
     devices: list[RackDeviceResponse]
     cables: list[RackCableResponse]
+    labels: list[RackLabelResponse] = []
     viewport: dict[str, Any] = {}
 
 

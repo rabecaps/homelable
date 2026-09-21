@@ -226,6 +226,37 @@ class RackCable(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class RackLabel(Base):
+    """A free-floating label/callout note on a rack canvas.
+
+    Reuses the logical canvas' `text` node contract: `label` is the note text
+    (the API serializer's source of truth) and `custom_colors` drives the same
+    font / size / text-colour / background controls. `target` is the link
+    target (none / node / device / port / cable + anchor), and unlike a logical
+    canvas node this is a first-class column — the rack payload owns its own
+    shape, so there is no risk of a top-level `data.*` field being dropped.
+    """
+
+    __tablename__ = "rack_labels"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    design_id: Mapped[str] = mapped_column(String, ForeignKey("designs.id", ondelete="CASCADE"), nullable=False)
+    label: Mapped[str] = mapped_column(String, nullable=False, default="")
+    # Same opaque style blob TextNode reads: font, text_size, text_color,
+    # border, border_style, border_width, background.
+    custom_colors: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # {kind, id | deviceId | portId | anchorRatio, ...} — see LabelTarget.
+    target: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # Which edge of the label box the leader lands on ('auto' | … | 'center').
+    anchor_side: Mapped[str | None] = mapped_column(String, nullable=True)
+    pos_x: Mapped[float] = mapped_column(Float, default=0)
+    pos_y: Mapped[float] = mapped_column(Float, default=0)
+    width: Mapped[float | None] = mapped_column(Float, nullable=True)
+    height: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
 class InventoryDevice(Base):
     __tablename__ = "device_inventory"
     # Permit the plain (non-Mapped[]) annotations on the transient request-only

@@ -8,13 +8,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.db.database import get_db
-from app.db.models import CanvasState, Design, InventoryDevice, Node, Rack, RackCable, RackDevice
+from app.db.models import (
+    CanvasState,
+    Design,
+    InventoryDevice,
+    Node,
+    Rack,
+    RackCable,
+    RackDevice,
+    RackLabel,
+)
 from app.schemas.racks import (
     RACK_COLUMNS,
     RackCableResponse,
     RackDeviceResponse,
     RackInventoryItem,
     RackInventoryResponse,
+    RackLabelResponse,
     RackResponse,
     RackSaveRequest,
     RackServiceInfo,
@@ -212,7 +222,7 @@ def _with_model(
     return row.model_copy(update=patch)
 
 
-_Row = TypeVar("_Row", Rack, RackDevice, RackCable)
+_Row = TypeVar("_Row", Rack, RackDevice, RackCable, RackLabel)
 
 
 async def _owned(
@@ -251,6 +261,9 @@ async def load_racks(
         await db.execute(select(RackDevice).where(RackDevice.design_id == design_id))
     ).scalars().all()
     cables = (await db.execute(select(RackCable).where(RackCable.design_id == design_id))).scalars().all()
+    labels = (
+        await db.execute(select(RackLabel).where(RackLabel.design_id == design_id))
+    ).scalars().all()
     state = await db.get(CanvasState, design_id)
 
     # The inventory row owns the front panel, so it wins over the mount's copy.
@@ -290,6 +303,7 @@ async def load_racks(
         racks=[RackResponse.model_validate(r) for r in racks],
         devices=mounted,
         cables=[RackCableResponse.model_validate(c) for c in cables],
+        labels=[RackLabelResponse.model_validate(l) for l in labels],
         viewport=state.viewport if state else {"x": 0, "y": 0, "zoom": 1},
     )
 
@@ -332,6 +346,12 @@ async def save_racks(
     ).scalars().all():
         if existing_rack.id not in rack_ids:
             await db.delete(existing_rack)
+    label_ids = {l.id for l in body.labels}
+    for existing_label in (
+        await db.execute(select(RackLabel).where(RackLabel.design_id == body.design_id))
+    ).scalars().all():
+        if existing_label.id not in label_ids:
+            await db.delete(existing_label)
     await db.flush()
 
     for rack_data in body.racks:
@@ -387,6 +407,19 @@ async def save_racks(
                 setattr(db_cable, field, value)
         else:
             db.add(RackCable(**payload))
+
+    # Labels carry their own geometry and only *reference* targets by id (a
+    # dangling target just stops drawing a leader), so they upsert independently
+    # of racks/devices/cables.
+    for label_data in body.labels:
+        payload = label_data.model_dump()
+        payload["design_id"] = body.design_id
+        db_label = await _owned(db, RackLabel, label_data.id, body.design_id)
+        if db_label:
+            for field, value in payload.items():
+                setattr(db_label, field, value)
+        else:
+            db.add(RackLabel(**payload))
 
     # Viewport lives on the design's shared CanvasState row, like the logical canvas.
     state = await db.get(CanvasState, body.design_id)

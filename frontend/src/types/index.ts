@@ -247,6 +247,13 @@ export interface NodeData extends Record<string, unknown> {
     show_border?: boolean
     width?: number
     height?: number
+    /**
+     * Callout target for a `text` node. Lives in the opaque `custom_colors`
+     * stash (not a top-level `data.*` field) because the API serializer only
+     * persists known node columns — a top-level field like `target` would be
+     * dropped on reload, exactly like the old `text_content` bug.
+     */
+    target?: LabelTarget
   }
   /**
    * Collapsible zone state (type === 'groupRect'). When true, the zone hides
@@ -285,6 +292,31 @@ export interface Waypoint {
   x: number
   y: number
 }
+
+/**
+ * One discriminated union describing what a free-floating label/callout points
+ * at, shared by both canvases. `kind: 'none'` is a plain annotation with no
+ * pointer. The rack uses `device`/`port`/`cable` in addition to `node`; the
+ * logical canvas uses `node`/`edge`. A `kind: 'none'` label never draws a
+ * leader line.
+ */
+export type LabelTarget =
+  | { kind: 'none' }
+  | { kind: 'node'; id: string }
+  // rack only: RackDevice.id
+  | { kind: 'device'; id: string }
+  // rack only
+  | { kind: 'port'; deviceId: string; portId: string }
+  // logical only: Edge.id
+  | { kind: 'edge'; id: string }
+  // rack only: Cable.id; anchorRatio selects a point along the run
+  | { kind: 'cable'; id: string; anchorRatio?: number }
+
+/**
+ * Which edge of the label box the leader lands on. `auto` picks the edge
+ * facing the anchor; `center` draws from the label centre.
+ */
+export type AnchorSide = 'auto' | 'top' | 'right' | 'bottom' | 'left' | 'center'
 
 export interface EdgeData extends Record<string, unknown> {
   type: EdgeType
