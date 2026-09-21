@@ -11,7 +11,7 @@
 import { ViewportPortal } from '@xyflow/react'
 import { useCanvasStore } from '@/stores/canvasStore'
 import type { Edge, Node } from '@xyflow/react'
-import type { LabelTarget, NodeData } from '@/types'
+import type { AnchorSide, LabelTarget, NodeData } from '@/types'
 
 export interface LogicalBox {
   x: number
@@ -96,16 +96,33 @@ export function resolveLogicalTarget(
   }
 }
 
-/** Which label-box edge the leader leaves from, given the anchor. */
-export function leaderOrigin(box: LogicalBox, anchor: { x: number; y: number }): { x: number; y: number } {
+/**
+ * Which label-box edge the leader leaves from, given the anchor.
+ * `auto` picks the edge facing the anchor (largest |delta|); an explicit
+ * `AnchorSide` overrides (matching the rack layer's contract).
+ */
+export function leaderOrigin(box: LogicalBox, anchor: { x: number; y: number }, side?: AnchorSide): { x: number; y: number } {
   const cx = box.x + box.width / 2
   const cy = box.y + box.height / 2
   const dx = anchor.x - cx
   const dy = anchor.y - cy
-  if (Math.abs(dx) >= Math.abs(dy)) {
-    return { x: dx >= 0 ? box.x + box.width : box.x, y: cy }
+  const sideToUse =
+    side === undefined || side === 'auto'
+      ? Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'bottom' : 'top')
+      : side
+  switch (sideToUse) {
+    case 'top':
+      return { x: cx, y: box.y }
+    case 'bottom':
+      return { x: cx, y: box.y + box.height }
+    case 'left':
+      return { x: box.x, y: cy }
+    case 'right':
+      return { x: box.x + box.width, y: cy }
+    case 'center':
+    default:
+      return { x: cx, y: cy }
   }
-  return { x: cx, y: dy >= 0 ? box.y + box.height : box.y }
 }
 
 export function LabelPointerLayer() {
@@ -126,7 +143,7 @@ export function LabelPointerLayer() {
     const anchor = resolveLogicalTarget(target, nodes, edges, bounds)
     if (!anchor) continue
     const box = nodeBox(node, {})
-    const from = leaderOrigin(box, anchor)
+    const from = leaderOrigin(box, anchor, node.data?.custom_colors?.anchor_side)
     leaders.push({ from, to: anchor, color: node.data.custom_colors?.border ?? '#8b949e' })
   }
 
