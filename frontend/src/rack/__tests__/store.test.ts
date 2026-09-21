@@ -987,3 +987,42 @@ describe('dirty tracking', () => {
     expect(store().hasUnsavedChanges).toBe(false)
   })
 })
+
+describe('labels', () => {
+  it('adds a label with a safe none target and sensible box', () => {
+    const id = store().addLabel({ label: 'UPS room', width: 200, height: 60 })
+    expect(store().labels).toHaveLength(1)
+    const label = store().labels[0]
+    expect(label.id).toBe(id)
+    expect(label.label).toBe('UPS room')
+    expect(label.target).toEqual({ kind: 'none' })
+    expect(label.width).toBe(200)
+  })
+
+  it('adds a label pointing at a device', () => {
+    const deviceId = store().devices[0].id
+    store().addLabel({ label: 'Core', target: { kind: 'device', id: deviceId }, anchorSide: 'right' })
+    expect(store().labels[0].target).toEqual({ kind: 'device', id: deviceId })
+    expect(store().labels[0].anchorSide).toBe('right')
+  })
+
+  it('moves, updates and removes a label', () => {
+    const id = store().addLabel()
+    store().moveLabel(id, { x: 400, y: 300 })
+    expect(store().labels[0].position).toEqual({ x: 400, y: 300 })
+
+    store().updateLabel(id, { label: 'Edited', custom_colors: { font: 'mono' } })
+    const edited = store().labels[0]
+    expect(edited.label).toBe('Edited')
+    expect(edited.custom_colors?.font).toBe('mono')
+
+    store().removeLabel(id)
+    expect(store().labels).toEqual([])
+  })
+
+  it('dirtying the canvas on a label edit', () => {
+    store().markSaved()
+    store().addLabel()
+    expect(store().hasUnsavedChanges).toBe(true)
+  })
+})

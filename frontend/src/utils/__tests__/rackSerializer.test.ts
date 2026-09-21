@@ -4,17 +4,20 @@ import {
   fromCable,
   fromRack,
   fromRackDevice,
+  fromRackLabel,
   toCable,
   toInventoryDevice,
   toRack,
   toRackDevice,
+  toRackLabel,
   type ApiRack,
   type ApiRackCable,
   type ApiRackDevice,
+  type ApiRackLabel,
 } from '../rackSerializer'
 import { DEFAULT_RACK_STYLE } from '@/rack/rackDefaults'
 import { RACK_COLUMNS } from '@/types'
-import type { Cable, Rack, RackDevice } from '@/types'
+import type { Cable, Rack, RackDevice, RackLabel } from '@/types'
 
 const apiRack: ApiRack = {
   id: 'r1',
@@ -399,6 +402,74 @@ describe('domain → API', () => {
   })
 })
 
+describe('labels', () => {
+  const apiLabel: ApiRackLabel = {
+    id: 'l1',
+    design_id: 'd1',
+    label: 'Core switch',
+    custom_colors: {
+      font: 'inter',
+      text_color: '#e6edf3',
+      text_size: 14,
+      border: '#00d4ff',
+      border_style: 'solid',
+      border_width: 1,
+      background: '#00000000',
+    },
+    target: { kind: 'device', id: 'dev1' },
+    anchor_side: 'auto',
+    pos_x: 320,
+    pos_y: 140,
+    width: 200,
+    height: 60,
+  }
+
+  it('maps an API label into the domain, nesting the position', () => {
+    const label = toRackLabel(apiLabel)
+    expect(label).toMatchObject({
+      id: 'l1',
+      label: 'Core switch',
+      target: { kind: 'device', id: 'dev1' },
+      anchorSide: 'auto',
+      position: { x: 320, y: 140 },
+      width: 200,
+      height: 60,
+    })
+    expect(label.custom_colors?.text_size).toBe(14)
+    expect(label.custom_colors?.border_style).toBe('solid')
+  })
+
+  it('narrows a malformed target to a safe none', () => {
+    const cable = toRackLabel({ ...apiLabel, target: { kind: 'cable' } })
+    expect(cable.target).toEqual({ kind: 'none' })
+    const cableOk = toRackLabel({ ...apiLabel, target: { kind: 'cable', id: 'c9', anchorRatio: 0.3 } })
+    expect(cableOk.target).toEqual({ kind: 'cable', id: 'c9', anchorRatio: 0.3 })
+    const bogus = toRackLabel({ ...apiLabel, target: { weird: true } })
+    expect(bogus.target).toEqual({ kind: 'none' })
+  })
+
+  it('round-trips a label into the API shape', () => {
+    const label = toRackLabel(apiLabel)
+    expect(fromRackLabel(label)).toMatchObject({
+      id: 'l1',
+      label: 'Core switch',
+      target: { kind: 'device', id: 'dev1' },
+      anchor_side: 'auto',
+      pos_x: 320,
+      pos_y: 140,
+      width: 200,
+      height: 60,
+    })
+  })
+
+  it('defaults absent anchor side and box size', () => {
+    const bare = toRackLabel({ ...apiLabel, anchor_side: null, width: null, height: null })
+    expect(bare.anchorSide).toBeUndefined()
+    expect(bare.width).toBeUndefined()
+    expect(fromRackLabel(bare).anchor_side).toBeNull()
+  })
+})
+
 describe('buildSavePayload', () => {
   const rack: Rack = toRack(apiRack)
   const device: RackDevice = toRackDevice(apiDevice)
@@ -424,5 +495,25 @@ describe('buildSavePayload', () => {
     expect(payload.devices.map((d) => d.id)).toEqual(['dev1'])
     // The backend rejects dangling cables, so they must not reach it.
     expect(payload.cables).toEqual([])
+  })
+
+  it('carries labels in the save payload', () => {
+    const label: RackLabel = toRackLabel({
+      id: 'l1',
+      design_id: 'd1',
+      label: 'UPS room',
+      custom_colors: {},
+      target: { kind: 'none' },
+      anchor_side: null,
+      pos_x: 10,
+      pos_y: 20,
+      width: 200,
+      height: 60,
+    })
+    const payload = buildSavePayload('d1', [rack], [device], [], viewport, [label])
+    expect(payload.labels).toHaveLength(1)
+    expect(payload.labels[0]).toMatchObject({ id: 'l1', pos_x: 10, pos_y: 20 })
+    // Absent labels are saved as an empty collection by default.
+    expect(buildSavePayload('d1', [rack], [device], [], viewport).labels).toEqual([])
   })
 })
