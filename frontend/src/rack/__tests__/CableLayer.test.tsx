@@ -188,3 +188,130 @@ describe('CableLayer selection', () => {
     expect(strokeWidths()).toContain('7')
   })
 })
+
+describe('CableLayer routing (waypoints + path style)', () => {
+  /** Resolve every visible `d` attribute drawn for a cable, in order. */
+  const pathDs = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll<SVGPathElement>('path')).map((p) => p.getAttribute('d'))
+
+  it('draws a Catmull `C` cubic when a routed cable has waypoints (bezier)', () => {
+    const store = useRackStore.getState()
+    store.setCableVisibility('always')
+    store.updateCable(store.cables[0].id, {
+      waypoints: [{ x: 300, y: 200 }],
+      pathStyle: 'bezier',
+    })
+    const { container } = render(<CableLayer />)
+    const ds = pathDs(container).filter((d) => d && d.includes(' C '))
+    expect(ds.length).toBeGreaterThan(0)
+    expect(ds.every((d) => d!.startsWith('M') && d!.includes(' C '))).toBe(true)
+    // Untouched cables in the same render still use the slack-loop cubic `C`.
+    const legacy = pathDs(container).filter((d) => d && d.startsWith('M') && !d.includes('L') && /C .* C /.test(d))
+    expect(legacy.length).toBeGreaterThan(0)
+  })
+
+  it('draws `Q`/`L` segments for a routed cable in smooth style', () => {
+    const store = useRackStore.getState()
+    store.setCableVisibility('always')
+    store.updateCable(store.cables[0].id, {
+      waypoints: [{ x: 300, y: 200 }],
+      pathStyle: 'smooth',
+    })
+    const { container } = render(<CableLayer />)
+    const ds = pathDs(container).filter((d) => d && d.includes(' Q '))
+    expect(ds.length).toBeGreaterThan(0)
+    expect(ds.some((d) => d!.includes(' L '))).toBe(true)
+  })
+
+  it('keeps the default slack-loop `C` cubic when a cable has no waypoints', () => {
+    const store = useRackStore.getState()
+    store.setCableVisibility('always')
+    // Explicitly ensure no waypoints are set.
+    expect(store.cables[0].waypoints).toBeUndefined()
+    const { container } = render(<CableLayer />)
+    const ds = pathDs(container)
+    const cube = ds.find((d) => d && d.startsWith('M') && !d.includes('L'))
+    expect(cube).toBeDefined()
+    expect(cube!.startsWith('M') && /M [\d.]+ [\d.]+ C /.test(cube!)).toBe(true)
+  })
+
+  it('renders no waypoint handles when the routed cable is not selected', () => {
+    const store = useRackStore.getState()
+    store.updateCable(store.cables[0].id, { waypoints: [{ x: 300, y: 200 }] })
+    store.setCableVisibility('always')
+    const { queryAllByTestId } = render(<CableLayer />)
+    expect(queryAllByTestId(`cable-waypoint-${store.cables[0].id}-0`)).toHaveLength(0)
+  })
+
+  it('renders a drag handle per waypoint on the selected cable', () => {
+    const store = useRackStore.getState()
+    store.setCableVisibility('always')
+    store.updateCable(store.cables[0].id, {
+      waypoints: [{ x: 300, y: 200 }, { x: 310, y: 210 }],
+    })
+    store.selectCable(store.cables[0].id)
+    const { getAllByTestId } = render(<CableLayer />)
+    expect(getAllByTestId(`cable-waypoint-${store.cables[0].id}-0`)).toHaveLength(1)
+    expect(getAllByTestId(`cable-waypoint-${store.cables[0].id}-1`)).toHaveLength(1)
+  })
+
+  it('clicking a + handle inserts a waypoint at the segment midpoint', () => {
+    const store = useRackStore.getState()
+    store.setCableVisibility('always')
+    store.updateCable(store.cables[0].id, {
+      pathStyle: 'bezier',
+    })
+    store.selectCable(store.cables[0].id)
+    const cid = store.cables[0].id
+    const { getAllByTestId } = render(<CableLayer />)
+    const addHandle = getAllByTestId(`cable-add-${cid}-0`)[0]
+    fireEvent.click(addHandle)
+    // Read fresh — the store replaces the cables array on every edit, so a
+    // reference captured before the click is stale.
+    const after = useRackStore.getState().cables.find((c) => c.id === cid)
+    expect(after?.waypoints ?? []).toHaveLength(1)
+  })
+
+  it('caps the + handles at 12 waypoints', () => {
+    const store = useRackStore.getState()
+    store.setCableVisibility('always')
+    const many = Array.from({ length: 12 }, (_, i) => ({ x: 100 + i * 10, y: 200 }))
+    store.updateCable(store.cables[0].id, { waypoints: many })
+    store.selectCable(store.cables[0].id)
+    const { queryAllByTestId } = render(<CableLayer />)
+    // 13 waypoints → no add handles stay visible.
+    expect(queryAllByTestId(`cable-add-${store.cables[0].id}-0`)).toHaveLength(0)
+  })
+
+  it('dragging a waypoint handle moves the stored waypoint', () => {
+    const store = useRackStore.getState()
+    store.setCableVisibility('always')
+    const cid = store.cables[0].id
+    store.updateCable(cid, { waypoints: [{ x: 300, y: 200 }] })
+    store.selectCable(cid)
+    const { getByTestId } = render(<CableLayer />)
+    const handle = getByTestId(`cable-waypoint-${cid}-0`)
+
+    fireEvent.pointerDown(handle, { pointerId: 1, buttons: 1 })
+    fireEvent.pointerMove(handle, { pointerId: 1, buttons: 1, clientX: 350, clientY: 220 })
+    fireEvent.pointerUp(handle, { pointerId: 1 })
+
+    expect(useRackStore.getState().cables.find((c) => c.id === cid)!.waypoints![0]).toMatchObject({ x: 350, y: 220 })
+  })
+
+  it('double-clicking a waypoint handle removes that waypoint', () => {
+    const store = useRackStore.getState()
+    store.setCableVisibility('always')
+    const cid = store.cables[0].id
+    store.updateCable(cid, {
+      waypoints: [{ x: 300, y: 200 }, { x: 310, y: 210 }],
+    })
+    store.selectCable(cid)
+    const { getByTestId } = render(<CableLayer />)
+    const handle = getByTestId(`cable-waypoint-${cid}-0`)
+    fireEvent.doubleClick(handle)
+    const after = useRackStore.getState().cables.find((c) => c.id === cid)!.waypoints
+    expect(after!).toHaveLength(1)
+    expect(after![0]).toMatchObject({ x: 310, y: 210 })
+  })
+})

@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { PropertyList } from '@/components/common/PropertyList'
 import { CABLE_COLOR_PRESETS, CABLE_COLORS, CABLE_PROPERTY_SUGGESTIONS } from '../rackDefaults'
 import { useRackStore } from '../store'
-import type { CableProperty, CableType, RackDevice } from '@/types'
+import type { CablePathStyle, CableProperty, CableType, RackDevice } from '@/types'
 
 const TYPE_LABELS: Record<CableType, string> = {
   ethernet: 'Ethernet',
@@ -94,6 +94,35 @@ export function RackCablePanel() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Path — how a routed run (with waypoints) curves. Absent waypoints
+          means the cable keeps its default slack-loop shape, so the style only
+          bites once the user drags out a route. */}
+      <div className="px-4 py-3 border-b border-border">
+        <span className="text-xs text-muted-foreground">Path</span>
+        <div className="mt-2 flex gap-1.5">
+          {(['bezier', 'smooth'] as CablePathStyle[]).map((style) => (
+            <button
+              key={style}
+              onClick={() => updateCable(cable.id, { pathStyle: style })}
+              className={`flex-1 rounded border px-2 py-1 text-[11px] capitalize transition-colors cursor-pointer ${
+                (cable.pathStyle ?? 'bezier') === style
+                  ? 'border-[#00d4ff] bg-[#00d4ff]/10 text-[#00d4ff]'
+                  : 'border-[#30363d] text-muted-foreground hover:border-[#8b949e]'
+              }`}
+            >
+              {style === 'bezier' ? 'Bezier' : 'Smooth'}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => updateCable(cable.id, { waypoints: undefined, pathStyle: undefined })}
+          className="mt-2 text-[11px] text-muted-foreground hover:text-[#8b949e] transition-colors cursor-pointer underline decoration-dotted"
+          title="Clear all waypoints and return to the default slack-loop shape"
+        >
+          Tidy / reset shape
+        </button>
       </div>
 
       {/* Colour */}

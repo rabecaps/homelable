@@ -312,6 +312,34 @@ class TestSaveAndLoad:
         assert loaded["cables"][0]["from_port_id"] == "p1"
         assert loaded["viewport"] == {"x": 10, "y": 20, "zoom": 1.5}
 
+    async def test_round_trips_rack_cable_routing(self, client: AsyncClient, headers):
+        # A routed rack cable stores its waypoints and path style and reads them
+        # back — the persistence half of the spline-routing feature.
+        design_id = await _design(client, headers)
+        state = _state(design_id)
+        state["cables"][0]["path_style"] = "smooth"
+        state["cables"][0]["waypoints"] = [{"x": 300, "y": 200}, {"x": 310, "y": 210}]
+        res = await client.post("/api/v1/racks/save", json=state, headers=headers)
+        assert res.status_code == 200, res.text
+
+        loaded = (await client.get(f"/api/v1/racks?design_id={design_id}", headers=headers)).json()
+        cable = loaded["cables"][0]
+        assert cable["path_style"] == "smooth"
+        assert cable["waypoints"] == [{"x": 300, "y": 200}, {"x": 310, "y": 210}]
+
+    async def test_a_cable_saved_without_routing_reads_back_null(
+        self, client: AsyncClient, headers
+    ):
+        # A cable saved before the spline columns existed (or that was never
+        # routed) reads back as NULL — the overlay keeps its default shape.
+        design_id = await _design(client, headers)
+        res = await client.post("/api/v1/racks/save", json=_state(design_id), headers=headers)
+        assert res.status_code == 200, res.text
+
+        loaded = (await client.get(f"/api/v1/racks?design_id={design_id}", headers=headers)).json()
+        assert loaded["cables"][0]["path_style"] is None
+        assert loaded["cables"][0]["waypoints"] is None
+
     async def test_round_trips_the_port_visibility_override(
         self, client: AsyncClient, headers
     ):

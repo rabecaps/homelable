@@ -116,6 +116,10 @@ class RackCableSave(BaseModel):
     label_visible: bool = False
     # [{key, value, icon, visible}] — free-form, same shape as node properties.
     properties: list[dict[str, Any]] = []
+    # Path style for a routed run ('bezier' | 'smooth'). NULL = default bulge.
+    path_style: str | None = None
+    # [{x, y}] the routed run passes through, in flow coordinates.
+    waypoints: list[dict[str, float]] | None = None
 
     @field_validator("type")
     @classmethod
@@ -131,6 +135,27 @@ class RackCableSave(BaseModel):
         if not isinstance(v, list):
             return []
         return [p for p in v if isinstance(p, dict) and str(p.get("key", "")).strip()]
+
+    @field_validator("waypoints", mode="before")
+    @classmethod
+    def _clean_waypoints(cls, v: Any) -> list[dict[str, float]] | None:
+        """Keep only {x, y} records a routed run can walk; drop anything else.
+
+        Mirrors how `properties` is scrubbed — the path builders index by
+        position, so a stray non-numeric member would derail the whole run.
+        """
+        if v is None:
+            return None
+        if not isinstance(v, list):
+            return None
+        cleaned: list[dict[str, float]] = []
+        for w in v:
+            if not isinstance(w, dict):
+                continue
+            x, y = w.get("x"), w.get("y")
+            if isinstance(x, (int, float)) and isinstance(y, (int, float)) and not isinstance(x, bool) and not isinstance(y, bool):
+                cleaned.append({"x": float(x), "y": float(y)})
+        return cleaned
 
 
 class RackSaveRequest(BaseModel):
@@ -261,12 +286,20 @@ class RackCableResponse(BaseModel):
     label: str | None = None
     label_visible: bool = False
     properties: list[dict[str, Any]] = []
+    path_style: str | None = None
+    waypoints: list[dict[str, float]] | None = None
 
     @field_validator("properties", mode="before")
     @classmethod
     def _list_properties(cls, v: Any) -> list[dict[str, Any]]:
         """Rows written before the column existed read back as NULL."""
         return v if isinstance(v, list) else []
+
+    @field_validator("waypoints", mode="before")
+    @classmethod
+    def _list_waypoints(cls, v: Any) -> list[dict[str, float]] | None:
+        """Rows written before the column existed read back as NULL."""
+        return v if isinstance(v, list) else None
 
     @field_validator("label_visible", mode="before")
     @classmethod

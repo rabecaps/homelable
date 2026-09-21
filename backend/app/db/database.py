@@ -423,6 +423,11 @@ async def init_db() -> None:
                 "ALTER TABLE rack_cables ADD COLUMN label_visible BOOLEAN NOT NULL DEFAULT 0",
             ),
             ("rack_cables.properties", "ALTER TABLE rack_cables ADD COLUMN properties JSON"),
+            (
+                "rack_cables.path_style",
+                "ALTER TABLE rack_cables ADD COLUMN path_style TEXT",
+            ),
+            ("rack_cables.waypoints", "ALTER TABLE rack_cables ADD COLUMN waypoints JSON"),
         ]
         for label, sql in rack_cable_migrations:
             await _try_migrate(conn, sql, label=label)

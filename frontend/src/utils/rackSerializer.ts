@@ -74,6 +74,10 @@ export interface ApiRackCable {
   label_visible: boolean
   /** [{key, value, icon, visible}] — same records the logical canvas uses. */
   properties: CableProperty[]
+  /** How a routed run curves through its waypoints. Absent = straight bulge. */
+  path_style?: string | null
+  /** Ordered points the run passes through, in flow coordinates. */
+  waypoints?: { x: number; y: number }[] | null
 }
 
 export interface ApiRackState {
@@ -262,6 +266,12 @@ export function toCable(api: ApiRackCable): Cable {
     properties: asCableProperties(api.properties),
     from: { deviceId: api.from_device_id, portId: api.from_port_id },
     to: { deviceId: api.to_device_id, portId: api.to_port_id },
+    waypoints: Array.isArray(api.waypoints) && api.waypoints.length
+      ? api.waypoints.map((w) => ({ x: w.x, y: w.y }))
+      : undefined,
+    pathStyle: api.path_style === 'smooth'
+      ? 'smooth'
+      : api.path_style === 'bezier' ? 'bezier' : undefined,
   }
 }
 
@@ -385,6 +395,8 @@ export function fromCable(cable: Cable): Omit<ApiRackCable, 'design_id'> {
     label: cable.label ?? null,
     label_visible: cable.labelVisible === true,
     properties: cable.properties ?? [],
+    path_style: cable.pathStyle ?? null,
+    waypoints: cable.waypoints ?? null,
   }
 }
 

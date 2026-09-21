@@ -7,7 +7,7 @@
  */
 // Type-only, so the cycle with `./index` (which re-exports this module) is
 // erased at compile time. Cables reuse the logical canvas' property records.
-import type { NodeProperty } from './index'
+import type { NodeProperty, Waypoint } from './index'
 
 /** Horizontal grid inside a rack. 12 columns = full width, 6 = half, 4 = third. */
 export const RACK_COLUMNS = 12
@@ -232,6 +232,13 @@ export type CableType = 'ethernet' | 'fiber'
  */
 export type CableProperty = NodeProperty
 
+/**
+ * How a routed rack cable curves through its waypoints. Rack's own name for the
+ * values `EdgePathStyle` already uses on the logical canvas — a `smooth` run
+ * rounds each corner, a `bezier` run Catmull-smooths through every point.
+ */
+export type CablePathStyle = 'bezier' | 'smooth'
+
 export interface Cable {
   id: string
   type: CableType
@@ -243,6 +250,12 @@ export interface Cable {
   properties?: CableProperty[]
   from: { deviceId: string; portId: string }
   to: { deviceId: string; portId: string }
+  /** Ordered points the run passes through, in flow coordinates. Absent = the
+   *  default slack-loop cubic. */
+  waypoints?: Waypoint[]
+  /** How waypoints curve the run. Absent = 'bezier'. Only meaningful with
+   *  waypoints — a cable that never had a routed run keeps today's shape. */
+  pathStyle?: CablePathStyle
 }
 
 /** How the cabling overlay behaves. */

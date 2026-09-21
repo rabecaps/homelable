@@ -813,6 +813,25 @@ describe('cables', () => {
     expect(store().hasUnsavedChanges).toBe(true)
   })
 
+  it('persists routing (waypoints + path style) through updateCable', () => {
+    const cable = store().cables[0]
+    store().updateCable(cable.id, {
+      waypoints: [{ x: 300, y: 200 }],
+      pathStyle: 'smooth',
+    })
+    const updated = store().cables.find((c) => c.id === cable.id)!
+    expect(updated.waypoints).toEqual([{ x: 300, y: 200 }])
+    expect(updated.pathStyle).toBe('smooth')
+  })
+
+  it('leaves routing unset on a freshly added cable', () => {
+    const { a, b } = freePorts()
+    const id = store().addCable(a, b)
+    const cable = store().cables.find((c) => c.id === id)!
+    expect(cable.waypoints).toBeUndefined()
+    expect(cable.pathStyle).toBeUndefined()
+  })
+
   it('leaves other cables untouched when one is edited', () => {
     const [first, second] = store().cables
     store().updateCable(first.id, { color: '#ff00ff' })

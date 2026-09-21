@@ -160,6 +160,25 @@ describe('API → domain', () => {
     expect(cable.properties).toEqual([])
   })
 
+  it('maps a routed cable\'s waypoints and path style into the domain', () => {
+    const cable = toCable({
+      ...apiCable,
+      path_style: 'smooth',
+      waypoints: [{ x: 300, y: 200 }, { x: 310, y: 210 }],
+    })
+    expect(cable.pathStyle).toBe('smooth')
+    expect(cable.waypoints).toEqual([{ x: 300, y: 200 }, { x: 310, y: 210 }])
+  })
+
+  it('treats an empty waypoint list as no routing at all', () => {
+    // A cable saved with [], or a legacy row before the column existed, both
+    // read back as undefined — the overlay keeps its default slack-loop shape.
+    expect(toCable({ ...apiCable, path_style: null, waypoints: [] }).waypoints).toBeUndefined()
+    expect(toCable({ ...apiCable, path_style: 'weird', waypoints: null }).pathStyle).toBeUndefined()
+    expect(toCable(apiCable).pathStyle).toBeUndefined()
+    expect(toCable(apiCable).waypoints).toBeUndefined()
+  })
+
   it('drops cable properties that carry no key', () => {
     const cable = toCable({
       ...apiCable,
@@ -338,6 +357,23 @@ describe('domain → API', () => {
       label_visible: true,
       properties: [{ key: 'Length', value: '3 m', icon: null, visible: true }],
     })
+  })
+
+  it('round-trips a routed cable\'s waypoints and path style', () => {
+    const cable: Cable = {
+      ...toCable(apiCable),
+      waypoints: [{ x: 300, y: 200 }],
+      pathStyle: 'smooth',
+    }
+    expect(fromCable(cable)).toMatchObject({
+      path_style: 'smooth',
+      waypoints: [{ x: 300, y: 200 }],
+    })
+  })
+
+  it('sends NULL routing for a cable that was never routed', () => {
+    const bare = { ...toCable(apiCable), waypoints: undefined, pathStyle: undefined }
+    expect(fromCable(bare)).toMatchObject({ path_style: null, waypoints: null })
   })
 
   it('sends explicit defaults for a cable that was never annotated', () => {

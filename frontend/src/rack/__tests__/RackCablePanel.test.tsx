@@ -153,6 +153,32 @@ describe('RackCablePanel', () => {
     expect(store().selectedCableId).toBeNull()
   })
 
+  it('switches the path style between Bezier and Smooth', () => {
+    const cable = store().cables[0]
+    store().selectCable(cable.id)
+    render(<RackCablePanel />)
+
+    fireEvent.click(screen.getByText('Smooth'))
+    expect(selected().pathStyle).toBe('smooth')
+
+    fireEvent.click(screen.getByText('Bezier'))
+    expect(selected().pathStyle).toBe('bezier')
+  })
+
+  it('tidies / resets a routed shape back to the default', () => {
+    const cable = store().cables[0]
+    store().selectCable(cable.id)
+    store().updateCable(cable.id, {
+      waypoints: [{ x: 300, y: 200 }],
+      pathStyle: 'smooth',
+    })
+    render(<RackCablePanel />)
+
+    fireEvent.click(screen.getByText(/Tidy \/ reset shape/))
+    expect(selected().waypoints).toBeUndefined()
+    expect(selected().pathStyle).toBeUndefined()
+  })
+
   it('closes without touching the cable', () => {
     const before = store().cables.length
     store().selectCable(store().cables[0].id)

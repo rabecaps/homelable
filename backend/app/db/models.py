@@ -217,6 +217,12 @@ class RackCable(Base):
     # [{key, value, icon, visible}] — same records nodes carry; the visible ones
     # are drawn beside the cable.
     properties: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    # Path style for a routed run ('bezier' | 'smooth'); NULL = no routing, the
+    # run keeps its default slack-loop cubic.
+    path_style: Mapped[str | None] = mapped_column(String, nullable=True)
+    # [{x, y}] in flow coordinates — the ordered points a routed run passes
+    # through. NULL/absent = straight (default) run.
+    waypoints: Mapped[list[dict[str, float]] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
