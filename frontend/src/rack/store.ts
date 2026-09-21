@@ -19,6 +19,7 @@ import {
   toInventoryDevice,
   toRack,
   toRackDevice,
+  toRackLabel,
 } from '@/utils/rackSerializer'
 import { getFaceplate, suggestFaceplate } from './faceplates'
 import { canPlace, clamp, findSlot, type Placement } from './layout'
@@ -31,7 +32,9 @@ import {
   type Port,
   type Rack,
   type RackDevice,
+  type RackLabel,
   type RackStyle,
+  type LabelTarget,
 } from '@/types'
 import { demoCables, demoDevices, demoInventory, demoRacks } from './demoData'
 import {
@@ -84,6 +87,7 @@ interface RackState {
   racks: Rack[]
   devices: RackDevice[]
   cables: Cable[]
+  labels: RackLabel[]
   inventory: InventoryDevice[]
   viewport: Viewport
 
@@ -221,6 +225,24 @@ interface RackState {
    */
   importCablesFromNetwork: (hints: NetworkLinkHint[]) => number
 
+  // Labels / callout notes
+  /**
+   * Add a free-floating label/callout note. Returns the new label id.
+   * The first label starts near the current viewport centre so it is never
+   * dropped off-screen.
+   */
+  addLabel: (input?: {
+    label?: string
+    custom_colors?: RackLabel['custom_colors']
+    target?: LabelTarget
+    position?: { x: number; y: number }
+    width?: number
+    height?: number
+  }) => string
+  moveLabel: (id: string, position: { x: number; y: number }) => void
+  updateLabel: (id: string, patch: Partial<Omit<RackLabel, 'id' | 'position'>>) => void
+  removeLabel: (id: string) => void
+
   // UI actions
   setViewport: (v: Viewport) => void
   selectDevice: (id: string | null) => void
@@ -260,6 +282,7 @@ function emptyState() {
     racks: [] as Rack[],
     devices: [] as RackDevice[],
     cables: [] as Cable[],
+    labels: [] as RackLabel[],
     inventory: [] as InventoryDevice[],
     viewport: { ...DEFAULT_VIEWPORT },
     loading: false,
@@ -352,6 +375,7 @@ export const useRackStore = create<RackState>((set, get) => {
             racks: stored?.racks ?? [],
             devices,
             cables: stored?.cables ?? [],
+            labels: stored?.labels ?? [],
             inventory: withRackedFlags(stored?.inventory ?? [], devices),
             viewport: stored?.viewport ?? { ...DEFAULT_VIEWPORT },
             loading: false,
@@ -371,6 +395,7 @@ export const useRackStore = create<RackState>((set, get) => {
           racks: state.data.racks.map(toRack),
           devices,
           cables: state.data.cables.map(toCable),
+          labels: (state.data.labels ?? []).map(toRackLabel),
           inventory: withRackedFlags(inventory.data.items.map(toInventoryDevice), devices),
           viewport: {
             x: state.data.viewport?.x ?? 0,
@@ -399,7 +424,7 @@ export const useRackStore = create<RackState>((set, get) => {
     },
 
     save: async (expectedDesignId) => {
-      const { designId, racks, devices, cables, viewport, inventory } = get()
+      const { designId, racks, devices, cables, labels, viewport, inventory } = get()
       if (!designId) return false
       // The design-switch flow saves the *old* design before loading the new
       // one. This store writes whatever it currently holds, so a switch landing
@@ -407,9 +432,9 @@ export const useRackStore = create<RackState>((set, get) => {
       if (expectedDesignId && expectedDesignId !== designId) return false
       try {
         if (STANDALONE) {
-          standaloneStorage.saveRackCanvas(designId, { racks, devices, cables, viewport, inventory })
+          standaloneStorage.saveRackCanvas(designId, { racks, devices, cables, labels, viewport, inventory })
         } else {
-          await racksApi.save(buildSavePayload(designId, racks, devices, cables, viewport))
+          await racksApi.save(buildSavePayload(designId, racks, devices, cables, viewport, labels))
         }
         set({ hasUnsavedChanges: false })
         return true
@@ -916,6 +941,34 @@ export const useRackStore = create<RackState>((set, get) => {
       }
       return created
     },
+
+    // --- Labels / callout notes ----------------------------------------------
+    addLabel: (input) => {
+      const id = generateUUID()
+      const label: RackLabel = {
+        id,
+        label: input?.label ?? '',
+        custom_colors: input?.custom_colors,
+        target: input?.target ?? { kind: 'none' },
+        position: input?.position ?? {
+          x: 80 + get().labels.length * 40,
+          y: 60 + get().labels.length * 40,
+        },
+        width: input?.width ?? 200,
+        height: input?.height ?? 60,
+      }
+      edit((s) => ({ labels: [...s.labels, label] }))
+      return id
+    },
+
+    moveLabel: (id, position) =>
+      edit((s) => ({ labels: s.labels.map((l) => (l.id === id ? { ...l, position } : l)) })),
+
+    updateLabel: (id, patch) =>
+      edit((s) => ({ labels: s.labels.map((l) => (l.id === id ? { ...l, ...patch } : l)) })),
+
+    removeLabel: (id) =>
+      edit((s) => ({ labels: s.labels.filter((l) => l.id !== id) })),
 
     // --- UI -----------------------------------------------------------------
     // Pan/zoom is persisted, but nudging the view is not an edit worth a Save

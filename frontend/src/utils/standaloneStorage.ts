@@ -23,6 +23,7 @@ import type {
   NodeData,
   Rack,
   RackDevice,
+  RackLabel,
 } from '@/types'
 import type { ThemeId } from '@/utils/themes'
 import { generateUUID } from '@/utils/uuid'
@@ -38,6 +39,11 @@ export interface StandaloneRackCanvas {
   racks: Rack[]
   devices: RackDevice[]
   cables: Cable[]
+  /**
+   * Free-floating label/callout notes. Optional for a canvas saved before the
+   * feature existed — a load treats it as empty.
+   */
+  labels?: RackLabel[]
   viewport?: { x: number; y: number; zoom: number }
   /**
    * Inventory entries created from the rack canvas. Standalone has no

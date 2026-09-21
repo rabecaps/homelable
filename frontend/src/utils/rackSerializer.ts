@@ -14,6 +14,7 @@ import type {
   DeviceStatus,
   InventoryDevice,
   InventoryService,
+  LabelTarget,
   LinkedNodeInfo,
   MountStatus,
   Port,
@@ -21,6 +22,7 @@ import type {
   PortVisibility,
   Rack,
   RackDevice,
+  RackLabel,
   RackModel,
   RackNumbering,
   RackStyle,
@@ -80,10 +82,26 @@ export interface ApiRackCable {
   waypoints?: { x: number; y: number }[] | null
 }
 
+export interface ApiRackLabel {
+  id: string
+  design_id: string
+  label: string
+  /** Same opaque style blob the logical canvas' TextNode reads. */
+  custom_colors: Record<string, unknown>
+  /** The `LabelTarget` union — none/node/device/port/cable + anchor. */
+  target: Record<string, unknown>
+  anchor_side: string | null
+  pos_x: number
+  pos_y: number
+  width: number | null
+  height: number | null
+}
+
 export interface ApiRackState {
   racks: ApiRack[]
   devices: ApiRackDevice[]
   cables: ApiRackCable[]
+  labels: ApiRackLabel[]
   viewport: { x?: number; y?: number; zoom?: number }
 }
 
@@ -127,6 +145,7 @@ export interface RackSavePayload {
   racks: Omit<ApiRack, 'design_id'>[]
   devices: Omit<ApiRackDevice, 'design_id'>[]
   cables: Omit<ApiRackCable, 'design_id'>[]
+  labels: Omit<ApiRackLabel, 'design_id'>[]
   viewport: { x: number; y: number; zoom: number }
 }
 
@@ -136,6 +155,14 @@ const WIDTH_STANDARDS: RackWidthStandard[] = ['19', '10']
 const NUMBERINGS: RackNumbering[] = ['bottom-up', 'top-down']
 const PORT_TYPES: PortType[] = ['rj45', 'sfp', 'sfp+', 'power']
 const DEVICE_STATUSES: DeviceStatus[] = ['online', 'offline', 'unknown']
+const ANCHOR_SIDES: ('auto' | 'top' | 'right' | 'bottom' | 'left' | 'center')[] = [
+  'auto',
+  'top',
+  'right',
+  'bottom',
+  'left',
+  'center',
+]
 
 function asWidthStandard(v: string): RackWidthStandard {
   return (WIDTH_STANDARDS as string[]).includes(v) ? (v as RackWidthStandard) : '19'
@@ -222,6 +249,78 @@ function asCableProperties(raw: unknown): CableProperty[] {
 }
 
 // ── API → domain ─────────────────────────────────────────────────────────────
+
+/**
+ * The `custom_colors`/`target` blobs survive as opaque JSON. `target` must
+ * still be a sane `LabelTarget` (a `kind` is required) so the pointer layer can
+ * discriminate on it without guarding every field.
+ */
+function asTarget(raw: Record<string, unknown>): LabelTarget {
+  const kind = typeof raw.kind === 'string' ? raw.kind : 'none'
+  const anchorRatio = typeof raw.anchorRatio === 'number' ? raw.anchorRatio : undefined
+  switch (kind) {
+    case 'node':
+      return typeof raw.id === 'string' ? { kind: 'node', id: raw.id } : { kind: 'none' }
+    case 'device':
+      return typeof raw.id === 'string' ? { kind: 'device', id: raw.id } : { kind: 'none' }
+    case 'port':
+      return typeof raw.deviceId === 'string' && typeof raw.portId === 'string'
+        ? { kind: 'port', deviceId: raw.deviceId, portId: raw.portId }
+        : { kind: 'none' }
+    case 'edge':
+      return typeof raw.id === 'string' ? { kind: 'edge', id: raw.id } : { kind: 'none' }
+    case 'cable':
+      return typeof raw.id === 'string'
+        ? { kind: 'cable', id: raw.id, anchorRatio }
+        : { kind: 'none' }
+    default:
+      return { kind: 'none' }
+  }
+}
+
+export function toRackLabel(api: ApiRackLabel): RackLabel {
+  const raw = api.custom_colors ?? {}
+  const colors: NonNullable<RackLabel['custom_colors']> = {}
+  if (typeof raw.font === 'string') colors.font = raw.font
+  if (typeof raw.text_color === 'string') colors.text_color = raw.text_color
+  if (typeof raw.text_size === 'number') colors.text_size = raw.text_size
+  if (typeof raw.border === 'string') colors.border = raw.border
+  if (
+    typeof raw.border_style === 'string' &&
+    ['solid', 'dashed', 'dotted', 'double', 'none'].includes(raw.border_style)
+  ) {
+    colors.border_style = raw.border_style as NonNullable<RackLabel['custom_colors']>['border_style']
+  }
+  if (typeof raw.border_width === 'number') colors.border_width = raw.border_width
+  if (typeof raw.background === 'string') colors.background = raw.background
+  return {
+    id: api.id,
+    label: api.label ?? '',
+    custom_colors: colors,
+    target: asTarget(api.target ?? {}),
+    anchorSide:
+      typeof api.anchor_side === 'string' && (ANCHOR_SIDES as string[]).includes(api.anchor_side)
+        ? (api.anchor_side as NonNullable<RackLabel['anchorSide']>)
+        : undefined,
+    position: { x: api.pos_x ?? 0, y: api.pos_y ?? 0 },
+    width: api.width ?? undefined,
+    height: api.height ?? undefined,
+  }
+}
+
+export function fromRackLabel(label: RackLabel): Omit<ApiRackLabel, 'design_id'> {
+  return {
+    id: label.id,
+    label: label.label ?? '',
+    custom_colors: { ...(label.custom_colors ?? {}) },
+    target: { ...(label.target ?? { kind: 'none' }) },
+    anchor_side: label.anchorSide ?? null,
+    pos_x: label.position.x,
+    pos_y: label.position.y,
+    width: label.width ?? null,
+    height: label.height ?? null,
+  }
+}
 
 export function toRack(api: ApiRack): Rack {
   return {
@@ -406,6 +505,7 @@ export function buildSavePayload(
   devices: RackDevice[],
   cables: Cable[],
   viewport: { x: number; y: number; zoom: number },
+  labels: RackLabel[] = [],
 ): RackSavePayload {
   const rackIds = new Set(racks.map((r) => r.id))
   const keptDevices = devices.filter((d) => rackIds.has(d.rackId))
@@ -419,6 +519,7 @@ export function buildSavePayload(
     cables: cables
       .filter((c) => deviceIds.has(c.from.deviceId) && deviceIds.has(c.to.deviceId))
       .map(fromCable),
+    labels: labels.map(fromRackLabel),
     viewport,
   }
 }
