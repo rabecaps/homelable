@@ -4,7 +4,7 @@ import {
   leaderOrigin,
   resolveLogicalTarget,
   type LogicalBox,
-} from '../LabelPointerLayer'
+} from '../labelPointerUtils'
 import type { Edge, Node } from '@xyflow/react'
 import type { NodeData } from '@/types'
 

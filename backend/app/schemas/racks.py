@@ -153,7 +153,12 @@ class RackCableSave(BaseModel):
             if not isinstance(w, dict):
                 continue
             x, y = w.get("x"), w.get("y")
-            if isinstance(x, (int, float)) and isinstance(y, (int, float)) and not isinstance(x, bool) and not isinstance(y, bool):
+            # Both coordinates must be real numbers — reject bools (a bool is a
+            # subclass of int) so a stray true/false can't derail geometry.
+            if (
+                isinstance(x, int | float) and not isinstance(x, bool)
+                and isinstance(y, int | float) and not isinstance(y, bool)
+            ):
                 cleaned.append({"x": float(x), "y": float(y)})
         return cleaned
 

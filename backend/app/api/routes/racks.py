@@ -303,7 +303,7 @@ async def load_racks(
         racks=[RackResponse.model_validate(r) for r in racks],
         devices=mounted,
         cables=[RackCableResponse.model_validate(c) for c in cables],
-        labels=[RackLabelResponse.model_validate(l) for l in labels],
+        labels=[RackLabelResponse.model_validate(label) for label in labels],
         viewport=state.viewport if state else {"x": 0, "y": 0, "zoom": 1},
     )
 
@@ -346,7 +346,7 @@ async def save_racks(
     ).scalars().all():
         if existing_rack.id not in rack_ids:
             await db.delete(existing_rack)
-    label_ids = {l.id for l in body.labels}
+    label_ids = {label.id for label in body.labels}
     for existing_label in (
         await db.execute(select(RackLabel).where(RackLabel.design_id == body.design_id))
     ).scalars().all():
