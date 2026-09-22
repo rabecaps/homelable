@@ -27,8 +27,8 @@ export function TextNode({ id, data, selected }: NodeProps<Node<NodeData>>) {
     <>
       <NodeResizer
         isVisible={selected}
-        minWidth={40}
-        minHeight={20}
+        minWidth={32}
+        minHeight={16}
         handleStyle={{
           width: 8,
           height: 8,
@@ -46,7 +46,7 @@ export function TextNode({ id, data, selected }: NodeProps<Node<NodeData>>) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 8,
+          padding: 6,
           background: backgroundColor,
           border: borderStyle === 'none' ? 'none' : `${borderWidth}px ${borderStyle} ${borderColor}`,
           boxShadow: selected ? '0 0 0 1px #00d4ff, 0 0 8px #00d4ff44' : 'none',

@@ -468,6 +468,15 @@ describe('labels', () => {
     expect(bare.width).toBeUndefined()
     expect(fromRackLabel(bare).anchor_side).toBeNull()
   })
+
+  it('accepts and round-trips a corner anchor side', () => {
+    const label = toRackLabel({ ...apiLabel, anchor_side: 'topRight' })
+    expect(label.anchorSide).toBe('topRight')
+    expect(fromRackLabel(label).anchor_side).toBe('topRight')
+    // A corner value survives the from-API narrowing too (not dropped to undefined).
+    const bottomLeft = toRackLabel({ ...apiLabel, anchor_side: 'bottomLeft' })
+    expect(bottomLeft.anchorSide).toBe('bottomLeft')
+  })
 })
 
 describe('buildSavePayload', () => {

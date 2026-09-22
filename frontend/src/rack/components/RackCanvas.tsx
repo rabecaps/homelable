@@ -212,6 +212,10 @@ function RackCanvasInner() {
           custom_colors: label.custom_colors ?? {},
         },
         draggable: !cableMode,
+        // zIndex 100: the label must paint ABOVE the callout leader overlay
+        // (the portaled LabelPointerLayer svg sets zIndex 5), so the line never
+        // runs over/through the label text.
+        zIndex: 100,
         style: { width: label.width ?? 200, height: label.height ?? 60 },
       })),
     ],
