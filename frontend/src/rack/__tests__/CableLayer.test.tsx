@@ -314,4 +314,46 @@ describe('CableLayer routing (waypoints + path style)', () => {
     expect(after!).toHaveLength(1)
     expect(after![0]).toMatchObject({ x: 310, y: 210 })
   })
+
+  it('renders the waypoint handle as a colored disc on a 2px #0d1117 ring (network style)', () => {
+    const store = useRackStore.getState()
+    store.setCableVisibility('always')
+    const cid = store.cables[0].id
+    const color = store.cables[0].color
+    store.updateCable(cid, { waypoints: [{ x: 300, y: 200 }] })
+    store.selectCable(cid)
+    const { getByTestId } = render(<CableLayer />)
+    const handle = getByTestId(`cable-waypoint-${cid}-0`)
+    // Group holds: an outer dark disc (the 2px #0d1117 border) over a smaller
+    // coloured centre, sized to reproduce the network 10px + 2px border look.
+    expect(handle.getAttribute('style')).toContain('cursor: grab')
+    const circles = handle.querySelectorAll('circle')
+    expect(circles).toHaveLength(2)
+    expect(circles[0]).toHaveAttribute('r', '5')
+    expect(circles[0]).toHaveAttribute('fill', '#0d1117')
+    expect(circles[1]).toHaveAttribute('r', '3')
+    expect(circles[1]).toHaveAttribute('fill', color)
+    expect(handle.querySelector('title')?.textContent).toBe('Drag to move · Double-click to remove')
+  })
+
+  it('renders the add handle as a dark circled-plus', () => {
+    const store = useRackStore.getState()
+    store.setCableVisibility('always')
+    const cid = store.cables[0].id
+    const color = store.cables[0].color
+    store.updateCable(cid, { pathStyle: 'bezier' })
+    store.selectCable(cid)
+    const { getByTestId } = render(<CableLayer />)
+    const add = getByTestId(`cable-add-${cid}-0`)
+    expect(add.getAttribute('style')).toContain('cursor: crosshair')
+    const circles = add.querySelectorAll('circle')
+    expect(circles).toHaveLength(2)
+    // Dark disc fill (not the old bare plate) + a color ring.
+    expect(circles[0]).toHaveAttribute('fill', '#0d1117')
+    expect(circles[1]).toHaveAttribute('stroke', color)
+    // A '+' glyph path inside the disc is the circled-plus affordance.
+    const plus = add.querySelector('path')
+    expect(plus).not.toBeNull()
+    expect(add.querySelector('title')?.textContent).toBe('Click to add waypoint')
+  })
 })
