@@ -125,6 +125,10 @@ function RackCanvasInner() {
 
   const [labelEditorOpen, setLabelEditorOpen] = useState(false)
   const [editingLabel, setEditingLabel] = useState<{ id: string } | null>(null)
+  // Which label's NodeResizer handles are live. A label must be explicitly
+  // selected before its resize handles render (`NodeResizer isVisible` is
+  // driven off this), and selection is what makes Delete/Backspace reach it.
+  const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null)
 
   const palette = useRackPalette()
   const { setViewport: applyViewport, screenToFlowPosition } = useReactFlow()
@@ -211,43 +215,73 @@ function RackCanvasInner() {
           label: label.label,
           custom_colors: label.custom_colors ?? {},
         },
+        // A label must be selectable for `NodeResizer isVisible={selected}` to
+        // flip on, and its selection is fed back through `onNodesChange` so the
+        // keyboard delete and the editor know which label the user picked.
+        selected: selectedLabelId === label.id,
         draggable: !cableMode,
         style: { width: label.width ?? 200, height: label.height ?? 60 },
       })),
     ],
-    [racks, labels, cableMode],
+    [racks, labels, cableMode, selectedLabelId],
   )
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       for (const change of changes) {
-        if (change.type !== 'position' || !change.position) continue
-        const isLabel = labels.some((l) => l.id === change.id)
-        if (isLabel) moveLabel(change.id, change.position)
-        else moveRack(change.id, change.position)
+        if (change.type === 'select') {
+          // A label picked on the canvas gets its resize handles shown and
+          // becomes the target of Delete/Backspace. A rack pick (or an empty
+          // click) clears the selection.
+          if (change.selected) setSelectedLabelId(change.id)
+          continue
+        }
+        if (change.type === 'position' && change.position) {
+          const isLabel = labels.some((l) => l.id === change.id)
+          if (isLabel) moveLabel(change.id, change.position)
+          else moveRack(change.id, change.position)
+          continue
+        }
+        if (
+          change.type === 'dimensions' &&
+          change.dimensions &&
+          change.resizing !== false
+        ) {
+          // NodeResizer emits these as the user drags a handle — persist the
+          // new box. The initial measure (resizing === false) is skipped so a
+          // freshly-loaded label doesn't dirty the canvas as an edit.
+          updateLabel(change.id, {
+            width: change.dimensions.width,
+            height: change.dimensions.height,
+          })
+        }
       }
     },
-    [moveRack, moveLabel, labels],
+    [moveRack, moveLabel, updateLabel, labels],
   )
 
   // Delete/Backspace removes the selected label before falling through to the
   // cable handler: a label is a flow node the same key handling would leave to
   // React Flow, but we branch on it explicitly so the pointer goes with it.
+  // The label being edited is always a delete target; a picked-but-not-open
+  // one is too (its resize handles are live and it is the obvious focus).
   useEffect(() => {
-    if (!editingLabel) return
+    const targetId = editingLabel?.id ?? selectedLabelId
+    if (!targetId) return
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
       const tag = target?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
-        removeLabel(editingLabel.id)
+        removeLabel(targetId)
         setEditingLabel(null)
+        setSelectedLabelId(null)
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [editingLabel, removeLabel])
+  }, [editingLabel, selectedLabelId, removeLabel])
 
   const onMoveEnd = useCallback(
     (_: unknown, viewport: Viewport) => setViewport(viewport),
@@ -270,9 +304,15 @@ function RackCanvasInner() {
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
       onMoveEnd={onMoveEnd}
-      onPaneClick={() => { selectDevice(null); setEditingLabel(null) }}
+      onPaneClick={() => { selectDevice(null); setEditingLabel(null); setSelectedLabelId(null) }}
+      onNodeClick={(_event, node) => {
+        // Clicking a label picks it up — the same gesture React Flow would use
+        // to show its NodeResizer handles and arm the keyboard delete.
+        if (node.type === 'text') setSelectedLabelId(node.id)
+      }}
       onNodeDoubleClick={(_event, node) => {
         if (node.type === 'text' && labels.some((l) => l.id === node.id)) {
+          setSelectedLabelId(node.id)
           setEditingLabel({ id: node.id })
         }
       }}
