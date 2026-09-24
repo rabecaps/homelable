@@ -251,6 +251,27 @@ FACEPLATES: list[dict[str, Any]] = [
         "ports": [],
     },
 
+    # --- Custom plate builder ------------------------------------------------
+    # Two blank starters with no ship ports — the user drops their own.
+    {
+        "id": "blank-black",
+        "label": "Custom plate — black",
+        "kind": "device",
+        "group": "Custom",
+        "u_height": 1,
+        "col_span": RACK_COLUMNS,
+        "ports": [],
+    },
+    {
+        "id": "blank-white",
+        "label": "Custom plate — white",
+        "kind": "device",
+        "group": "Custom",
+        "u_height": 1,
+        "col_span": RACK_COLUMNS,
+        "ports": [],
+    },
+
     # --- Accessories --------------------------------------------------------
     {
         "id": "blank-1u",
@@ -330,6 +351,11 @@ DEVICE_TYPE_BY_FACEPLATE = {
     "server-4u-storage": "server",
     "sff-half": "computer",
     "mini-third": "computer",
+    # A custom blank plate holds whatever the user builds on it, so the
+    # inventory row gets the generic server type — the same fallback a
+    # never-discovered device wears (faceplates.ts:556).
+    "blank-black": "server",
+    "blank-white": "server",
     "switch-8": "switch",
     "switch-24": "switch",
     "switch-48": "switch",

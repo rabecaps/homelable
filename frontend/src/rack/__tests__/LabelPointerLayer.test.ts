@@ -4,7 +4,7 @@ import {
   leaderOrigin,
   resolveTarget,
   type Box,
-} from '../components/LabelPointerLayer'
+} from '../components/labelPointerUtils'
 import type { Cable, Rack, RackDevice } from '@/types'
 
 const rack: Rack = {
