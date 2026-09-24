@@ -462,6 +462,45 @@ describe('labels', () => {
     })
   })
 
+  it('survives a style edit->save->reload round-trip with custom_colors intact', () => {
+    // Edit a label in the modal (rackPodFromForm produces the domain pod),
+    // persist it (fromRackLabel), read it back (toRackLabel): every style field
+    // must survive — a dropped border/background/text key is how a style edit
+    // silently disappears.
+    const edited = toRackLabel(apiLabel) // reload (domain) state before edit
+    edited.custom_colors = {
+      font: 'mono',
+      text_color: '#ff0000',
+      text_size: 24,
+      border: '#00ff00',
+      border_style: 'dashed',
+      border_width: 3,
+      background: '#11223344',
+    }
+    const saved = fromRackLabel(edited)
+    const reloaded = toRackLabel({ ...saved, design_id: 'd1' })
+    expect(reloaded.custom_colors).toEqual(edited.custom_colors)
+    // And the domain pod the modal produces matches what TextNode reads.
+    expect(reloaded.custom_colors).toEqual({
+      font: 'mono',
+      text_color: '#ff0000',
+      text_size: 24,
+      border: '#00ff00',
+      border_style: 'dashed',
+      border_width: 3,
+      background: '#11223344',
+    })
+  })
+
+  it('keeps width/height through the save reload so a resize persists', () => {
+    const label = toRackLabel({ ...apiLabel, width: 320, height: 90 })
+    const saved = fromRackLabel(label)
+    expect(saved.width).toBe(320)
+    expect(saved.height).toBe(90)
+    expect(toRackLabel({ ...saved, design_id: 'd1' }).width).toBe(320)
+    expect(toRackLabel({ ...saved, design_id: 'd1' }).height).toBe(90)
+  })
+
   it('defaults absent anchor side and box size', () => {
     const bare = toRackLabel({ ...apiLabel, anchor_side: null, width: null, height: null })
     expect(bare.anchorSide).toBeUndefined()

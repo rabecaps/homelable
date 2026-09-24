@@ -5,6 +5,7 @@ import { RACK_COLUMNS, type InventoryDevice } from '@/types'
 import { MAX_RACK_U, MIN_RACK_U } from '../rackDefaults'
 import { cableTypeForPort } from '@/utils/rackSerializer'
 import { demoNetworkLinks } from '../demoData'
+import { racksApi } from '@/api/client'
 
 const store = () => useRackStore.getState()
 
@@ -1024,5 +1025,50 @@ describe('labels', () => {
     store().markSaved()
     store().addLabel()
     expect(store().hasUnsavedChanges).toBe(true)
+  })
+
+  it('persists a full style edit through the save payload (edit->save->reload)', async () => {
+    // The demo store has no live design; give it one so `save` can write.
+    useRackStore.setState({ designId: 'd1' })
+    const id = store().addLabel({ label: 'UPS', width: 200, height: 60 })
+    // What the modal's onSubmit produces: edit the label's text and every style
+    // field, and grow the box (a resize).
+    store().updateLabel(id, {
+      label: 'UPS room',
+      custom_colors: {
+        font: 'mono',
+        text_color: '#ff0000',
+        text_size: 24,
+        border: '#00ff00',
+        border_style: 'dashed',
+        border_width: 3,
+        background: '#11223344',
+      },
+      width: 320,
+      height: 90,
+    })
+    const ok = await store().save()
+    expect(ok).toBe(true)
+
+    const saveMock = racksApi.save as ReturnType<typeof vi.fn>
+    const payload = saveMock.mock.calls[0][0]
+    expect(payload.labels).toHaveLength(1)
+    const saved = payload.labels[0]
+    expect(saved).toMatchObject({
+      id,
+      label: 'UPS room',
+      width: 320,
+      height: 90,
+    })
+    // No style field may be dropped on the way out — that is how an edit is lost.
+    expect(saved.custom_colors).toEqual({
+      font: 'mono',
+      text_color: '#ff0000',
+      text_size: 24,
+      border: '#00ff00',
+      border_style: 'dashed',
+      border_width: 3,
+      background: '#11223344',
+    })
   })
 })
