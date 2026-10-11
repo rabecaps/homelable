@@ -91,9 +91,10 @@ export function resolveLogicalTarget(
 }
 
 /**
- * Which label-box edge the leader leaves from, given the anchor.
+ * Which label-box point the leader leaves from, given the anchor.
  * `auto` picks the edge facing the anchor (largest |delta|); an explicit
- * `AnchorSide` overrides (matching the rack layer's contract).
+ * `AnchorSide` overrides (matching the rack layer's contract), including the
+ * four corners; `center` draws from the box centre.
  */
 export function leaderOrigin(box: LogicalBox, anchor: { x: number; y: number }, side?: AnchorSide): { x: number; y: number } {
   const cx = box.x + box.width / 2
@@ -107,12 +108,20 @@ export function leaderOrigin(box: LogicalBox, anchor: { x: number; y: number }, 
   switch (sideToUse) {
     case 'top':
       return { x: cx, y: box.y }
-    case 'bottom':
-      return { x: cx, y: box.y + box.height }
-    case 'left':
-      return { x: box.x, y: cy }
+    case 'topRight':
+      return { x: box.x + box.width, y: box.y }
     case 'right':
       return { x: box.x + box.width, y: cy }
+    case 'bottomRight':
+      return { x: box.x + box.width, y: box.y + box.height }
+    case 'bottom':
+      return { x: cx, y: box.y + box.height }
+    case 'bottomLeft':
+      return { x: box.x, y: box.y + box.height }
+    case 'left':
+      return { x: box.x, y: cy }
+    case 'topLeft':
+      return { x: box.x, y: box.y }
     case 'center':
     default:
       return { x: cx, y: cy }

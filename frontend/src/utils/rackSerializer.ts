@@ -155,12 +155,16 @@ const WIDTH_STANDARDS: RackWidthStandard[] = ['19', '10']
 const NUMBERINGS: RackNumbering[] = ['bottom-up', 'top-down']
 const PORT_TYPES: PortType[] = ['rj45', 'sfp', 'sfp+', 'power']
 const DEVICE_STATUSES: DeviceStatus[] = ['online', 'offline', 'unknown']
-const ANCHOR_SIDES: ('auto' | 'top' | 'right' | 'bottom' | 'left' | 'center')[] = [
+const ANCHOR_SIDES: ('auto' | 'top' | 'topRight' | 'right' | 'bottomRight' | 'bottom' | 'bottomLeft' | 'left' | 'topLeft' | 'center')[] = [
   'auto',
   'top',
+  'topRight',
   'right',
+  'bottomRight',
   'bottom',
+  'bottomLeft',
   'left',
+  'topLeft',
   'center',
 ]
 

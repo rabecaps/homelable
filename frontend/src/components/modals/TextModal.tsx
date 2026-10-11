@@ -37,6 +37,34 @@ const BORDER_STYLES: { value: TextBorderStyle; label: string; preview: string }[
   { value: 'double', label: 'Double', preview: '═══' },
 ]
 
+/** All leader attachment points on the label box, in picker order. */
+const ANCHOR_SIDES: AnchorSide[] = [
+  'auto',
+  'top',
+  'topRight',
+  'right',
+  'bottomRight',
+  'bottom',
+  'bottomLeft',
+  'left',
+  'topLeft',
+  'center',
+]
+
+/** Human-readable labels for the anchor picker buttons. */
+const ANCHOR_LABELS: Record<AnchorSide, string> = {
+  auto: 'Auto',
+  top: 'Top',
+  topRight: 'Top right',
+  right: 'Right',
+  bottomRight: 'Bottom right',
+  bottom: 'Bottom',
+  bottomLeft: 'Bottom left',
+  left: 'Left',
+  topLeft: 'Top left',
+  center: 'Center',
+}
+
 const TEXT_SIZES: { value: number; label: string }[] = [
   { value: 10, label: '10' },
   { value: 12, label: '12' },
@@ -351,13 +379,13 @@ export function TextModal({
             )}
             {/* Leader landing edge on the label box. */}
             <div className="flex flex-wrap gap-1.5">
-              {(['auto', 'top', 'right', 'bottom', 'left', 'center'] as AnchorSide[]).map((side) => {
+              {ANCHOR_SIDES.map((side) => {
                 const active = form.anchor_side === side
                 return (
                   <button
                     key={side}
                     type="button"
-                    title={`Leader ${side}`}
+                    title={`Leader ${ANCHOR_LABELS[side]}`}
                     onClick={() => set('anchor_side', side)}
                     className={`flex items-center justify-center h-8 rounded text-xs transition-colors cursor-pointer ${modalStyles['modal-interactive']}`}
                     style={{
@@ -366,7 +394,7 @@ export function TextModal({
                       color: active ? '#00d4ff' : '#8b949e',
                     }}
                   >
-                    {side}
+                    {ANCHOR_LABELS[side]}
                   </button>
                 )
               })}

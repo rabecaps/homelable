@@ -222,7 +222,6 @@ export function CableLayer() {
                   cable={cable}
                   from={from}
                   to={to}
-                  palette={palette}
                 />
               )}
             </g>
@@ -321,17 +320,16 @@ interface HandleRefs {
   cable: Cable
   from: { x: number; y: number }
   to: { x: number; y: number }
-  palette: RackPalette
 }
 
 /** One draggable circle per waypoint on the selected cable. */
-function RackWaypointHandles({ cable, from, to }: Omit<HandleRefs, 'palette'>) {
+function RackWaypointHandles({ cable, from, to }: HandleRefs) {
   const { screenToFlowPosition } = useReactFlow()
   const updateCable = useRackStore((s) => s.updateCable)
   const waypoints = cable.waypoints ?? []
   const pathStyle = cable.pathStyle ?? 'bezier'
 
-  const handlePointerDown = (e: React.PointerEvent<SVGCircleElement>) => {
+  const handlePointerDown = (e: React.PointerEvent<SVGGElement>) => {
     e.stopPropagation()
     // SVG elements in jsdom (and older browsers) may not implement pointer
     // capture; the drag still works without it, so guard the call.
@@ -341,7 +339,7 @@ function RackWaypointHandles({ cable, from, to }: Omit<HandleRefs, 'palette'>) {
   }
 
   const handlePointerMove =
-    (index: number, prevPoint: Waypoint, nextPoint: Waypoint) => (e: React.PointerEvent<SVGCircleElement>) => {
+    (index: number, prevPoint: Waypoint, nextPoint: Waypoint) => (e: React.PointerEvent<SVGGElement>) => {
       if (e.buttons !== 1) return
       let pos = screenToFlowPosition({ x: e.clientX, y: e.clientY })
       if (pathStyle === 'smooth') pos = snap45both(prevPoint, nextPoint, pos)
@@ -350,7 +348,7 @@ function RackWaypointHandles({ cable, from, to }: Omit<HandleRefs, 'palette'>) {
       updateCable(cable.id, { waypoints: next })
     }
 
-  const handlePointerUp = (e: React.PointerEvent<SVGCircleElement>) => {
+  const handlePointerUp = (e: React.PointerEvent<SVGGElement>) => {
     if (typeof e.currentTarget.releasePointerCapture === 'function') {
       e.currentTarget.releasePointerCapture(e.pointerId)
     }
@@ -361,17 +359,14 @@ function RackWaypointHandles({ cable, from, to }: Omit<HandleRefs, 'palette'>) {
       {waypoints.map((wp, idx) => {
         const prevPoint = idx === 0 ? { x: from.x, y: from.y } : waypoints[idx - 1]
         const nextPoint = idx === waypoints.length - 1 ? { x: to.x, y: to.y } : waypoints[idx + 1]
+        // Reproduces the network edge's 10px disc: colored centre with a 2px
+        // #0d1117 border (drawn as a dark outer circle + colored inner disc so
+        // it matches the network WaypointHandle's border-box look exactly).
         return (
-          <circle
+          <g
             key={`wp-${idx}`}
             data-testid={`cable-waypoint-${cable.id}-${idx}`}
-            cx={wp.x}
-            cy={wp.y}
-            r={5}
-            fill={cable.color}
-            stroke={cable.color}
-            strokeWidth={2}
-            cursor="grab"
+            transform={`translate(${wp.x}, ${wp.y})`}
             style={{ pointerEvents: 'all', cursor: 'grab' }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove(idx, prevPoint, nextPoint)}
@@ -381,8 +376,10 @@ function RackWaypointHandles({ cable, from, to }: Omit<HandleRefs, 'palette'>) {
               updateCable(cable.id, { waypoints: waypoints.filter((_, i) => i !== idx) })
             }}
           >
+            <circle r={5} fill="#0d1117" />
+            <circle r={3} fill={cable.color} />
             <title>Drag to move · Double-click to remove</title>
-          </circle>
+          </g>
         )
       })}
     </>
@@ -390,7 +387,7 @@ function RackWaypointHandles({ cable, from, to }: Omit<HandleRefs, 'palette'>) {
 }
 
 /** One + circle per run segment; click inserts a waypoint at the midpoint. */
-function RackAddHandles({ cable, from, to, palette }: HandleRefs) {
+function RackAddHandles({ cable, from, to }: HandleRefs) {
   const updateCable = useRackStore((s) => s.updateCable)
   const waypoints = cable.waypoints ?? []
   const pathStyle = cable.pathStyle ?? 'bezier'
@@ -405,17 +402,14 @@ function RackAddHandles({ cable, from, to, palette }: HandleRefs) {
       {Array.from({ length: segments }, (_, i) => {
         const mid = getAddWaypointHandlePosition(from.x, from.y, waypoints, to.x, to.y, i, pathStyle)
         const prevPoint = i === 0 ? { x: from.x, y: from.y } : waypoints[i - 1]
+        // Matches the network AddWaypointHandle: a 14px dark (#0d1117) disc
+        // with a 1.5px coloured ring and a coloured '+' glyph, slightly faded.
         return (
-          <circle
+          <g
             key={`add-${i}`}
             data-testid={`cable-add-${cable.id}-${i}`}
-            cx={mid.x}
-            cy={mid.y}
-            r={7}
-            fill={palette.plate}
-            stroke={cable.color}
-            strokeWidth={1.5}
-            style={{ pointerEvents: 'all', cursor: 'crosshair' }}
+            transform={`translate(${mid.x}, ${mid.y})`}
+            style={{ pointerEvents: 'all', cursor: 'crosshair', opacity: 0.7 }}
             onClick={(e) => {
               e.stopPropagation()
               const pos = pathStyle === 'smooth' ? snap45(prevPoint, { x: mid.x, y: mid.y }) : { x: mid.x, y: mid.y }
@@ -424,8 +418,16 @@ function RackAddHandles({ cable, from, to, palette }: HandleRefs) {
               })
             }}
           >
+            <circle r={7} fill="#0d1117" />
+            <circle r={7} fill="none" stroke={cable.color} strokeWidth={1.5} />
+            <path
+              d="M 0 -3.2 V 3.2 M -3.2 0 H 3.2"
+              stroke={cable.color}
+              strokeWidth={1.5}
+              strokeLinecap="round"
+            />
             <title>Click to add waypoint</title>
-          </circle>
+          </g>
         )
       })}
     </>

@@ -99,4 +99,13 @@ describe('leaderOrigin', () => {
     expect(leaderOrigin(box, { x: 0, y: -500 }, 'bottom')).toEqual({ x: 50, y: 50 })
     expect(leaderOrigin(box, { x: 500, y: 0 }, 'center')).toEqual({ x: 50, y: 25 })
   })
+
+  it('supports the four corners of the label box', () => {
+    expect(leaderOrigin(box, { x: 60, y: 60 }, 'topLeft')).toEqual({ x: 0, y: 0 })
+    expect(leaderOrigin(box, { x: 60, y: 60 }, 'topRight')).toEqual({ x: 100, y: 0 })
+    expect(leaderOrigin(box, { x: 60, y: 60 }, 'bottomLeft')).toEqual({ x: 0, y: 50 })
+    expect(leaderOrigin(box, { x: 60, y: 60 }, 'bottomRight')).toEqual({ x: 100, y: 50 })
+    // A corner side takes effect even when the anchor faces a different edge.
+    expect(leaderOrigin(box, { x: 0, y: 0 }, 'bottomRight')).toEqual({ x: 100, y: 50 })
+  })
 })

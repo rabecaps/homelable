@@ -315,10 +315,21 @@ export type LabelTarget =
   | { kind: 'cable'; id: string; anchorRatio?: number }
 
 /**
- * Which edge of the label box the leader lands on. `auto` picks the edge
- * facing the anchor; `center` draws from the label centre.
+ * Where on the label box the leader lands. `auto` picks the edge facing the
+ * anchor; `center` draws from the box centre; the corner values draw from the
+ * corresponding corner of the box.
  */
-export type AnchorSide = 'auto' | 'top' | 'right' | 'bottom' | 'left' | 'center'
+export type AnchorSide =
+  | 'auto'
+  | 'top'
+  | 'topRight'
+  | 'right'
+  | 'bottomRight'
+  | 'bottom'
+  | 'bottomLeft'
+  | 'left'
+  | 'topLeft'
+  | 'center'
 
 export interface EdgeData extends Record<string, unknown> {
   type: EdgeType

@@ -116,7 +116,16 @@ export function CanvasContainer({ onConnect: onConnectProp, onEdgeDoubleClick, o
   // Filter nodes and edges based on collapsed state (memoized — O(n)).
   const collapseInfo = useMemo(() => computeCollapseInfo(nodes), [nodes])
   const visibleNodes = useMemo(
-    () => nodes.filter((n) => collapseInfo.visibleIds.has(n.id)),
+    () =>
+      nodes
+        .filter((n) => collapseInfo.visibleIds.has(n.id))
+        // Text/callout labels paint above the portaled LeaderPointerLayer svg
+        // (zIndex 5) via a high zIndex on the node, so the leader line never
+        // runs over/through the label text. Applies to every text node
+        // regardless of how it arrived (created, loaded, re-edited).
+        .map((n) =>
+          n.data?.type === 'text' ? ({ ...n, zIndex: 100 }) : n,
+        ),
     [nodes, collapseInfo],
   )
   const visibleEdges = useMemo(
